@@ -15,7 +15,7 @@ import { applyFilters, distinctValues } from "@/lib/select";
 import { kpisFor } from "@/lib/kpi";
 import { generateAlerts } from "@/lib/alerts";
 import { performanceScore, scoreTone } from "@/lib/score";
-import { previousWeekKey, weekLabel, weekRange } from "@/lib/week";
+import { previousWeekKey, weekLabel, weekLabelWithRange, weekRange } from "@/lib/week";
 import { formatDate, formatNumber } from "@/lib/format";
 import { SOURCE_LABELS, SourceId } from "@/lib/types";
 import { exportRecordsCsv } from "@/lib/exportCsv";
@@ -137,7 +137,7 @@ export default function WeeklyReportPage() {
             >
               {weeks.map((w) => (
                 <option key={w} value={w}>
-                  {weekLabel(w)}
+                  {weekLabelWithRange(w)}
                 </option>
               ))}
             </select>

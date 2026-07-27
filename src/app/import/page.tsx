@@ -241,8 +241,12 @@ function FileCard({
 
   const needsPeriod = !file.plan?.some((p) => p.targetField === "date" && !p.ignored) && !file.period;
   const unresolved = (file.plan ?? []).filter((p) => !p.targetField && !p.ignored).length;
+  // A file that carries its own game column (an AdMob export names the app per
+  // row) does not need one assigned by hand.
+  const hasGameColumn = Boolean(file.plan?.some((p) => p.targetField === "game" && !p.ignored));
+  const needsGame = !hasGameColumn && !file.game;
   const canImport =
-    file.status !== "duplicate" && file.status !== "error" && !needsPeriod && Boolean(file.game);
+    file.status !== "duplicate" && file.status !== "error" && !needsPeriod && !needsGame;
 
   return (
     <Card
@@ -293,12 +297,12 @@ function FileCard({
           </dl>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Game" required>
+            <Field label="Game" required={!hasGameColumn}>
               <input
                 list={`games-${file.id}`}
                 value={file.game ?? ""}
                 onChange={(e) => onUpdate({ game: e.target.value || undefined })}
-                placeholder="Which game is this?"
+                placeholder={hasGameColumn ? "Read from the file" : "Which game is this?"}
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
               />
               <datalist id={`games-${file.id}`}>
@@ -445,8 +449,13 @@ function FileCard({
             >
               Import into database
             </button>
-            {!file.game && (
+            {needsGame && (
               <span className="text-xs text-amber-700">Assign a game before importing.</span>
+            )}
+            {hasGameColumn && !file.game && (
+              <span className="text-xs text-slate-500">
+                Game is taken from this file&apos;s own column.
+              </span>
             )}
             {file.status === "duplicate" && (
               <span className="text-xs text-red-700">

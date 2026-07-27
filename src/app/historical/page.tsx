@@ -12,7 +12,7 @@ import { DemoBanner, EmptyState, ExpectedFilesTable } from "@/components/ui/Stat
 import { applyFilters, distinctValues } from "@/lib/select";
 import { kpisFor } from "@/lib/kpi";
 import { generateAlerts } from "@/lib/alerts";
-import { previousWeekKey, weekLabel, weekRange } from "@/lib/week";
+import { previousWeekKey, weekLabel, weekLabelWithRange, weekRange } from "@/lib/week";
 import { formatDate } from "@/lib/format";
 
 export default function HistoricalPage() {
@@ -120,7 +120,7 @@ export default function HistoricalPage() {
             >
               {weeks.map((w) => (
                 <option key={w} value={w}>
-                  {weekLabel(w)}
+                  {weekLabelWithRange(w)}
                 </option>
               ))}
             </select>
@@ -138,7 +138,7 @@ export default function HistoricalPage() {
             >
               {weeks.map((w) => (
                 <option key={w} value={w}>
-                  {weekLabel(w)}
+                  {weekLabelWithRange(w)}
                 </option>
               ))}
             </select>

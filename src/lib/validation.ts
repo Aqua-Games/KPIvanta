@@ -27,7 +27,10 @@ export function validateUpload(
     });
   }
 
-  if (!file.game) {
+  // A game column inside the file names the app per row, so a file-level
+  // assignment is only needed when no such column was mapped.
+  const hasGameColumn = (file.plan ?? []).some((p) => p.targetField === "game" && !p.ignored);
+  if (!file.game && !hasGameColumn && !records.some((r) => r.game)) {
     issues.push({
       id: nextId(),
       severity: "error",

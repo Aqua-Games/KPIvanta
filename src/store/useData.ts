@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { demoRecords, useStore } from "./useStore";
 import { applyFilters, dataDateRange, distinctValues } from "@/lib/select";
 import { validateDatabase } from "@/lib/validation";
-import { mergeRecords } from "@/lib/merge";
+import { deduplicateAudience, mergeRecords } from "@/lib/merge";
 import { KpiRecord } from "@/lib/types";
 
 const subscribeNever = () => () => {};
@@ -38,12 +38,19 @@ export function useData() {
     [isDemo, records]
   );
 
-  // Complementary uploads (DAU here, playtime there) are combined so ratios
-  // spanning two files — playtime per user, ARPDAU by build — can be computed.
-  const { records: source, conflicts } = useMemo(
-    () => mergeRecords(rawRecords),
-    [rawRecords]
-  );
+  // Two passes, in this order. First: where an analytics SDK and an ad network
+  // both counted the same audience, keep only the higher-priority source's user
+  // figures — this must happen while every record still has a single source.
+  // Second: combine complementary uploads (DAU here, playtime there) so ratios
+  // spanning two files can be computed at all.
+  const { records: source, conflicts } = useMemo(() => {
+    const deduped = deduplicateAudience(rawRecords);
+    const merged = mergeRecords(deduped.records);
+    return {
+      records: merged.records,
+      conflicts: [...deduped.conflicts, ...merged.conflicts],
+    };
+  }, [rawRecords]);
 
   const fullRange = useMemo(() => dataDateRange(source), [source]);
 

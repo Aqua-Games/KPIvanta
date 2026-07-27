@@ -25,6 +25,39 @@ export function weekLabel(weekKey: string): string {
   return `Week ${parseInt(match[2], 10)}, ${match[1]}`;
 }
 
+const MONTH_NAMES = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function parts(iso: string) {
+  const d = new Date(iso + "T00:00:00Z");
+  return { day: d.getUTCDate(), month: d.getUTCMonth(), year: d.getUTCFullYear() };
+}
+
+/**
+ * Compact date span, collapsing whatever the two ends share:
+ * "20–26 Jul 2026", "29 Jun – 5 Jul 2026", "30 Dec 2025 – 5 Jan 2026".
+ */
+export function rangeLabel(range: DateRange): string {
+  const from = parts(range.start);
+  const to = parts(range.end);
+
+  if (from.year !== to.year) {
+    return `${from.day} ${MONTH_NAMES[from.month]} ${from.year} – ${to.day} ${MONTH_NAMES[to.month]} ${to.year}`;
+  }
+  if (from.month !== to.month) {
+    return `${from.day} ${MONTH_NAMES[from.month]} – ${to.day} ${MONTH_NAMES[to.month]} ${to.year}`;
+  }
+  return `${from.day}–${to.day} ${MONTH_NAMES[from.month]} ${from.year}`;
+}
+
+/** Week number together with the days it covers, for selectors and filters. */
+export function weekLabelWithRange(weekKey: string): string {
+  const range = weekRange(weekKey);
+  return range ? `${weekLabel(weekKey)} · ${rangeLabel(range)}` : weekLabel(weekKey);
+}
+
 /** Monday..Sunday date range covered by an ISO week key. */
 export function weekRange(weekKey: string): DateRange | null {
   const match = weekKey.match(/^(\d{4})-W(\d+)$/);

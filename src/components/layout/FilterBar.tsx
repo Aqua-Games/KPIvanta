@@ -6,7 +6,7 @@ import { useData } from "@/store/useData";
 import { Filters, SOURCE_LABELS, SourceId } from "@/lib/types";
 import { MultiSelect } from "./MultiSelect";
 import { Badge } from "../ui/Badge";
-import { weekLabel } from "@/lib/week";
+import { weekLabelWithRange } from "@/lib/week";
 
 const FILTERS: { key: keyof Filters; label: string; facet: keyof ReturnType<typeof useData>["facets"] }[] = [
   { key: "games", label: "Game", facet: "games" },
@@ -161,6 +161,6 @@ export function FilterBar() {
 
 function labelFor(key: keyof Filters, value: string): string {
   if (key === "sources") return SOURCE_LABELS[value as SourceId] ?? value;
-  if (key === "weeks") return weekLabel(value);
+  if (key === "weeks") return weekLabelWithRange(value);
   return value;
 }
