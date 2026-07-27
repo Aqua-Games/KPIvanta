@@ -1,145 +1,165 @@
-// Canonical data model for the KPI dashboard.
-// A field that is not present in an uploaded source stays `undefined`.
-// `undefined` (unavailable) must never be treated the same as `0` (valid zero).
+// Canonical data model.
+// Rule that governs the whole app: a metric that a source does not report stays
+// `undefined`. `undefined` (unavailable) is never rendered or aggregated as `0`.
 
-export type PlatformSource =
-  | "google_ads"
+export type SourceId =
+  | "gameanalytics"
   | "admob"
-  | "axon"
-  | "applovin"
-  | "game_analytics"
   | "firebase"
-  | "meta_ads"
+  | "google_play"
+  | "app_store"
+  | "applovin"
+  | "unity_ads"
   | "generic";
 
-export const PLATFORM_LABELS: Record<PlatformSource, string> = {
-  google_ads: "Google Ads",
+export const SOURCE_LABELS: Record<SourceId, string> = {
+  gameanalytics: "GameAnalytics",
   admob: "AdMob",
-  axon: "Axon",
+  firebase: "Firebase",
+  google_play: "Google Play Console",
+  app_store: "App Store Connect",
   applovin: "AppLovin",
-  game_analytics: "GameAnalytics",
-  firebase: "Firebase Analytics",
-  meta_ads: "Meta Ads",
+  unity_ads: "Unity Ads",
   generic: "Generic CSV",
 };
 
-// Stable colors per platform, reused everywhere (legends, bars, badges).
-export const PLATFORM_COLORS: Record<PlatformSource, string> = {
-  google_ads: "#4285F4",
+export const SOURCE_COLORS: Record<SourceId, string> = {
+  gameanalytics: "#EC4899",
   admob: "#0F9D58",
-  axon: "#7C3AED",
+  firebase: "#F59E0B",
+  google_play: "#34A853",
+  app_store: "#0EA5E9",
   applovin: "#F97316",
-  game_analytics: "#EC4899",
-  firebase: "#FFCA28",
-  meta_ads: "#1877F2",
+  unity_ads: "#111827",
   generic: "#64748B",
 };
 
-export interface CanonicalDimensions {
-  date?: string; // ISO yyyy-MM-dd
-  platform?: PlatformSource;
-  dataSource?: string; // raw source label as reported by the file
-  account?: string;
-  appName?: string;
-  appId?: string;
-  os?: string;
-  appVersion?: string;
-  campaign?: string;
-  campaignId?: string;
-  campaignStatus?: string;
-  adSet?: string;
-  adSetId?: string;
-  ad?: string;
-  adId?: string;
+/** Which report shape a file was recognised as. Drives the transform used. */
+export type ReportKind =
+  | "retention_by_day" // Date + Retention 1..N columns
+  | "metric_by_build" // Date + "<Metric> <build>" columns (DAU 2.0, Playtime per user 1.9)
+  | "ad_performance_by_app" // one row per app, no date (AdMob export)
+  | "long_format" // already one row per date/dimension combination
+  | "unknown";
+
+export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
+  retention_by_day: "Retention by day (D1–D7)",
+  metric_by_build: "Metric split by build",
+  ad_performance_by_app: "Ad performance by app",
+  long_format: "Row-per-record report",
+  unknown: "Unrecognised layout",
+};
+
+/* ------------------------------------------------------------------ */
+/* Canonical record                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface KpiRecordDimensions {
+  date?: string; // ISO yyyy-MM-dd. Undefined only for period-level rows.
+  periodStart?: string; // for rows that describe a range rather than a day
+  periodEnd?: string;
+  week?: string; // ISO week key, e.g. "2026-W30"
+  game?: string;
+  build?: string; // app / build version, e.g. "2.0"
+  platform?: string; // iOS / Android
   country?: string;
-  region?: string;
-  network?: string;
-  adFormat?: string;
-  placement?: string;
-  device?: string;
+  source: SourceId;
   currency?: string;
-  attributionWindow?: string;
 }
 
-export interface AcquisitionMetrics {
-  spend?: number;
-  impressions?: number;
-  clicks?: number;
-  installs?: number;
-  conversions?: number;
-  viewThroughConversions?: number;
-  inAppActions?: number;
-}
+export interface KpiRecordMetrics {
+  // Engagement
+  dau?: number;
+  activeUsers?: number;
+  newUsers?: number;
+  sessions?: number;
+  playtimeSecondsPerUser?: number;
+  playtimeSecondsTotal?: number;
 
-export interface MonetizationMetrics {
+  // Retention — stored as rates (0-100) plus cohort size when the source has it.
+  retentionD1?: number;
+  retentionD2?: number;
+  retentionD3?: number;
+  retentionD4?: number;
+  retentionD5?: number;
+  retentionD6?: number;
+  retentionD7?: number;
+  retentionD30?: number;
+  cohortSize?: number;
+
+  // Monetization
   adRevenue?: number;
   iapRevenue?: number;
-  subscriptionRevenue?: number;
-  platformConversionValue?: number;
   adImpressions?: number;
-  matchedRequests?: number;
   adRequests?: number;
-}
+  matchedRequests?: number;
+  adClicks?: number;
+  adViewers?: number;
+  dav?: number; // daily ad viewers
 
-export interface EngagementMetrics {
-  users?: number;
-  newUsers?: number;
-  activeUsers?: number;
-  dau?: number;
-  wau?: number;
-  mau?: number;
-  sessions?: number;
-  sessionDuration?: number;
-  retainedUsersD1?: number;
-  eligibleNewUsersD1?: number;
-  retainedUsersD7?: number;
-  eligibleNewUsersD7?: number;
-  retainedUsersD30?: number;
-  eligibleNewUsersD30?: number;
+  // Stability
   crashes?: number;
-  crashFreeUsers?: number;
+  crashedUsers?: number;
+  anrs?: number;
+  crashRate?: number; // when a source reports the rate directly
+  anrRate?: number;
+
+  // Progression
+  levelStarts?: number;
+  levelCompletions?: number;
 }
 
-export interface CanonicalRow
-  extends CanonicalDimensions,
-    AcquisitionMetrics,
-    MonetizationMetrics,
-    EngagementMetrics {
+export interface KpiRecord extends KpiRecordDimensions, KpiRecordMetrics {
   id: string;
-  fileId: string;
+  uploadId: string;
   isDemo?: boolean;
-  raw?: Record<string, string>;
 }
+
+export type MetricKey = keyof KpiRecordMetrics;
+
+/* ------------------------------------------------------------------ */
+/* Canonical field catalogue (used by the column-mapping UI)           */
+/* ------------------------------------------------------------------ */
 
 export type FieldCategory =
   | "dimension"
-  | "acquisition"
+  | "engagement"
+  | "retention"
   | "monetization"
-  | "engagement";
+  | "stability"
+  | "progression";
 
-export type FieldDataType = "string" | "number" | "date" | "currency" | "percent";
+export type FieldDataType = "string" | "number" | "date" | "currency" | "rate";
 
 export interface CanonicalFieldDefinition {
   id: string;
   label: string;
   category: FieldCategory;
   dataType: FieldDataType;
-  required?: boolean;
-  description?: string;
+  description: string;
+  /** Rates arriving as 0–1 fractions are scaled to 0–100 on import. */
+  isRate?: boolean;
 }
 
+/* ------------------------------------------------------------------ */
+/* Import pipeline                                                     */
+/* ------------------------------------------------------------------ */
+
 export type ImportStatus =
-  | "pending"
   | "parsing"
-  | "needs_mapping"
+  | "needs_review"
+  | "needs_period"
   | "imported"
   | "partial"
+  | "duplicate"
   | "error";
 
 export interface ParsedTable {
-  titleRow?: string;
+  encoding: string;
+  delimiter: string;
+  titleRows: string[];
   dateRangeText?: string;
-  detectedDateRange?: { start: string; end: string };
+  detectedPeriod?: { start: string; end: string };
   headerRowIndex: number;
   headers: string[];
   rows: string[][];
@@ -147,113 +167,86 @@ export interface ParsedTable {
   blankRowCount: number;
 }
 
-export interface MappingSuggestion {
+export interface ColumnPlan {
   sourceColumn: string;
-  targetField: string | null; // canonical field id, null = unmapped/ignored
+  /** Canonical field id, or null when unmapped. */
+  targetField: string | null;
+  /** Build/version extracted from a wide column header, e.g. "DAU 2.0" -> "2.0". */
+  build?: string;
+  /** Retention day index extracted from "Retention 3" -> 3. */
+  retentionDay?: number;
   confidence: number; // 0-100
-  sampleValues: string[];
+  ignored: boolean;
   dataType: FieldDataType;
-  ignored?: boolean;
-}
-
-export interface ColumnMapping {
-  [sourceColumn: string]: {
-    targetField: string | null;
-    confidence: number;
-    ignored: boolean;
-  };
+  sampleValues: string[];
+  /** True when values look like 0–1 fractions that represent percentages. */
+  fractionRate?: boolean;
 }
 
 export interface UploadedFile {
   id: string;
   name: string;
   size: number;
-  platform: PlatformSource;
+  contentHash: string;
+  source: SourceId;
+  reportKind: ReportKind;
   status: ImportStatus;
-  detectedCurrency?: string;
-  detectedDateRange?: { start: string; end: string };
+  game?: string;
+  platform?: string;
+  country?: string;
+  build?: string;
+  currency?: string;
+  period?: { start: string; end: string };
   recordCount: number;
   importedRecordCount: number;
   skippedRecordCount: number;
   parsedTable?: ParsedTable;
-  mapping?: ColumnMapping;
-  mappingSuggestions?: MappingSuggestion[];
-  issues: DataQualityIssue[];
+  plan?: ColumnPlan[];
+  issues: ValidationIssue[];
   uploadedAt: string;
   error?: string;
 }
 
 export type IssueSeverity = "error" | "warning" | "info";
 
-export interface DataQualityIssue {
+export interface ValidationIssue {
   id: string;
   severity: IssueSeverity;
   category: string;
   description: string;
-  suggestedResolution: string;
+  resolution: string;
   sourceFile: string;
   rowNumber?: number;
-  resolved?: boolean;
+  excluded?: boolean;
 }
 
+/* ------------------------------------------------------------------ */
+/* Filters                                                             */
+/* ------------------------------------------------------------------ */
+
 export interface DateRange {
-  start: string; // ISO yyyy-MM-dd
+  start: string;
   end: string;
 }
 
-export interface DashboardFilters {
-  platforms: PlatformSource[];
-  dataSources: string[];
-  campaigns: string[];
+export interface Filters {
+  games: string[];
+  platforms: string[];
   countries: string[];
-  os: string[];
-  appVersions: string[];
-  networks: string[];
-  adFormats: string[];
-  campaignStatuses: string[];
-  currencies: string[];
+  builds: string[];
+  sources: string[];
+  weeks: string[];
   dateRange: DateRange | null;
-  comparePeriod: DateRange | null;
-  reportingCurrency: string;
+  compareRange: DateRange | null;
 }
 
-export interface SavedFilterView {
+export interface SavedView {
   id: string;
   name: string;
-  filters: DashboardFilters;
+  filters: Filters;
 }
 
 export type Granularity = "daily" | "weekly" | "monthly";
 
-export interface AggregateTotals {
-  spend?: number;
-  adRevenue?: number;
-  iapRevenue?: number;
-  subscriptionRevenue?: number;
-  totalRevenue?: number;
-  platformConversionValue?: number;
-  impressions?: number;
-  clicks?: number;
-  installs?: number;
-  conversions?: number;
-  viewThroughConversions?: number;
-  inAppActions?: number;
-  adImpressions?: number;
-  matchedRequests?: number;
-  adRequests?: number;
-  users?: number;
-  newUsers?: number;
-  activeUsers?: number;
-  dau?: number;
-  mau?: number;
-  sessions?: number;
-  retainedUsersD1?: number;
-  eligibleNewUsersD1?: number;
-  retainedUsersD7?: number;
-  eligibleNewUsersD7?: number;
-  retainedUsersD30?: number;
-  eligibleNewUsersD30?: number;
-  crashes?: number;
-  crashFreeUsers?: number;
-  rowCount: number;
-}
+/** How a metric change should be read. */
+export type MetricDirection = "higher_better" | "lower_better";
