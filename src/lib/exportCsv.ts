@@ -1,4 +1,4 @@
-import { CanonicalRow } from "./types";
+import { KpiRecord } from "./types";
 
 function escapeCell(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -7,55 +7,51 @@ function escapeCell(value: unknown): string {
 }
 
 export function toCsv(headers: string[], rows: (string | number | null | undefined)[][]): string {
-  const lines = [headers.map(escapeCell).join(",")];
-  for (const row of rows) lines.push(row.map(escapeCell).join(","));
-  return lines.join("\n");
+  return [headers.map(escapeCell).join(","), ...rows.map((r) => r.map(escapeCell).join(","))].join("\n");
 }
 
-const EXPORT_FIELDS: (keyof CanonicalRow)[] = [
-  "date",
-  "platform",
-  "dataSource",
-  "appName",
-  "os",
-  "appVersion",
-  "campaign",
-  "campaignStatus",
-  "country",
-  "network",
-  "adFormat",
-  "currency",
-  "spend",
-  "impressions",
-  "clicks",
-  "installs",
-  "conversions",
-  "platformConversionValue",
-  "adRevenue",
-  "iapRevenue",
-  "subscriptionRevenue",
-  "adImpressions",
-  "users",
-  "newUsers",
-  "dau",
-  "mau",
-  "crashes",
-  "crashFreeUsers",
-];
-
-export function rowsToCsv(rows: CanonicalRow[]): string {
-  return toCsv(
-    EXPORT_FIELDS as string[],
-    rows.map((row) => EXPORT_FIELDS.map((f) => row[f] as string | number | undefined))
-  );
-}
-
-export function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+export function download(filename: string, content: string, type = "text/csv;charset=utf-8;") {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+const RECORD_COLUMNS: (keyof KpiRecord)[] = [
+  "date",
+  "week",
+  "game",
+  "build",
+  "platform",
+  "country",
+  "source",
+  "currency",
+  "dau",
+  "newUsers",
+  "sessions",
+  "playtimeSecondsPerUser",
+  "retentionD1",
+  "retentionD3",
+  "retentionD7",
+  "adRevenue",
+  "iapRevenue",
+  "adImpressions",
+  "adRequests",
+  "matchedRequests",
+  "adClicks",
+  "crashes",
+  "anrs",
+  "levelStarts",
+  "levelCompletions",
+];
+
+export function exportRecordsCsv(records: KpiRecord[], filename: string) {
+  const csv = toCsv(
+    RECORD_COLUMNS as string[],
+    records.map((r) => RECORD_COLUMNS.map((c) => r[c] as string | number | undefined))
+  );
+  download(filename, csv);
 }

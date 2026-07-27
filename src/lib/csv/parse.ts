@@ -241,6 +241,15 @@ function suggestField(header: string): { field: string | null; confidence: numbe
 }
 
 export function buildColumnPlan(table: ParsedTable, kind: ReportKind): ColumnPlan[] {
+  // Retention columns share one scale decision. Deciding per column would misread
+  // a sparse column (D7 in a young cohort triangle) that has no populated cells.
+  const retentionSamples = table.headers.flatMap((header, index) =>
+    retentionDayFromHeader(header) === null
+      ? []
+      : table.rows.map((r) => r[index] ?? "").filter((v) => !isMissingCell(v))
+  );
+  const retentionIsFraction = looksLikeFractionRate(retentionSamples);
+
   return table.headers.map((header, index) => {
     const samples = table.rows
       .slice(0, 12)
@@ -275,7 +284,7 @@ export function buildColumnPlan(table: ParsedTable, kind: ReportKind): ColumnPla
         retentionDay,
         confidence: 95,
         dataType: "rate",
-        fractionRate: looksLikeFractionRate(samples),
+        fractionRate: retentionIsFraction,
         ignored: !(retentionDay <= 7 || retentionDay === 30),
       };
     }

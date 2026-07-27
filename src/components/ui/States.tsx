@@ -13,10 +13,10 @@ export function EmptyState({
   action?: { href: string; label: string };
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+    <div className="flex flex-col items-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 max-w-lg text-sm text-slate-500">{description}</p>
-      {children && <div className="mt-4 w-full max-w-2xl text-left">{children}</div>}
+      <p className="mt-1 max-w-xl text-sm text-slate-500">{description}</p>
+      {children && <div className="mt-5 w-full max-w-3xl text-left">{children}</div>}
       {action && (
         <Link
           href={action.href}
@@ -44,7 +44,7 @@ export function LoadingState({ label = "Processing…" }: { label?: string }) {
 
 export function ErrorState({ title, description }: { title: string; description: string }) {
   return (
-    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
       <h3 className="text-sm font-semibold text-red-800">{title}</h3>
       <p className="mt-1 text-sm text-red-700">{description}</p>
     </div>
@@ -53,10 +53,10 @@ export function ErrorState({ title, description }: { title: string; description:
 
 export function NoResultsState({ onClear }: { onClear: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-      <h3 className="text-sm font-semibold text-slate-900">No results for the selected filters</h3>
+    <div className="flex flex-col items-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+      <h3 className="text-sm font-semibold text-slate-900">No records match these filters</h3>
       <p className="mt-1 text-sm text-slate-500">
-        No rows match the current filter and date-range combination.
+        Nothing in the database falls inside the selected filters and date range.
       </p>
       <button
         type="button"
@@ -69,36 +69,75 @@ export function NoResultsState({ onClear }: { onClear: () => void }) {
   );
 }
 
-export const MINIMUM_COLUMNS: { purpose: string; columns: string }[] = [
-  { purpose: "Acquisition reporting", columns: "Date, Spend, Campaign, and at least one of Impressions, Clicks, or Installs" },
-  { purpose: "CTR", columns: "Clicks, Impressions" },
-  { purpose: "CPI", columns: "Spend, Installs" },
-  { purpose: "ROAS", columns: "Spend, plus Revenue or an explicitly mapped conversion value" },
-  { purpose: "Version comparison", columns: "App version, Date, and Users, Installs, Revenue or Retention" },
+const EXPECTED_FILES: { file: string; columns: string; unlocks: string }[] = [
+  {
+    file: "Retention.csv",
+    columns: "Date, Retention 1 … Retention 7",
+    unlocks: "D1, D3 and D7 retention plus the retention curve",
+  },
+  {
+    file: "DAU.csv",
+    columns: "Date, one DAU column per build (DAU 2.0, DAU 1.9 …)",
+    unlocks: "DAU trend, build adoption and every per-user KPI",
+  },
+  {
+    file: "Playtime.csv",
+    columns: "Date, one playtime column per build, in seconds per user",
+    unlocks: "Playtime per user and session depth by build",
+  },
+  {
+    file: "Ad Revenue.csv",
+    columns: "App, Estimated earnings, Impressions, Requests, Matched requests, Clicks",
+    unlocks: "ARPDAU, ARPDAU Ads, IMPDAU, eCPM, match and show rate",
+  },
+  {
+    file: "Funnel.csv",
+    columns: "Level starts and level completions",
+    unlocks: "Level completion percentage",
+  },
 ];
 
-export function MinimumColumnsTable() {
+export function ExpectedFilesTable() {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-md border border-slate-200">
       <table className="w-full border-collapse text-left text-sm">
-        <caption className="sr-only">Minimum useful columns per reporting purpose</caption>
+        <caption className="sr-only">Files to upload and the KPIs each one unlocks</caption>
         <thead>
-          <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-            <th scope="col" className="py-2 pr-4 font-medium">To calculate</th>
-            <th scope="col" className="py-2 font-medium">You need at minimum</th>
+          <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <th scope="col" className="px-3 py-2 font-medium">File</th>
+            <th scope="col" className="px-3 py-2 font-medium">Minimum useful columns</th>
+            <th scope="col" className="px-3 py-2 font-medium">Unlocks</th>
           </tr>
         </thead>
         <tbody>
-          {MINIMUM_COLUMNS.map((row) => (
-            <tr key={row.purpose} className="border-b border-slate-100 last:border-0">
-              <th scope="row" className="py-2 pr-4 align-top font-medium text-slate-800">
-                {row.purpose}
+          {EXPECTED_FILES.map((row) => (
+            <tr key={row.file} className="border-b border-slate-100 last:border-0">
+              <th scope="row" className="px-3 py-2 align-top font-medium text-slate-800">
+                {row.file}
               </th>
-              <td className="py-2 text-slate-600">{row.columns}</td>
+              <td className="px-3 py-2 align-top text-slate-600">{row.columns}</td>
+              <td className="px-3 py-2 align-top text-slate-600">{row.unlocks}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+export function DemoBanner() {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
+      <p className="text-sm text-amber-900">
+        <span className="font-semibold">Demo data.</span> Every figure below is generated so the
+        dashboard can be explored before any upload. It is replaced the moment you import a real file.
+      </p>
+      <Link
+        href="/import"
+        className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+      >
+        Import real data
+      </Link>
     </div>
   );
 }

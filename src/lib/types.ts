@@ -64,6 +64,8 @@ export interface KpiRecordDimensions {
   platform?: string; // iOS / Android
   country?: string;
   source: SourceId;
+  /** Every source that contributed to this record once complementary rows merge. */
+  sources?: SourceId[];
   currency?: string;
 }
 

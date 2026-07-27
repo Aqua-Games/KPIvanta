@@ -66,10 +66,6 @@ export function previousRange(range: DateRange): DateRange {
   return { start: addDays(range.start, -span), end: addDays(range.end, -span) };
 }
 
-export function sameRangeLastMonth(range: DateRange): DateRange {
-  return { start: addDays(range.start, -28), end: addDays(range.end, -28) };
-}
-
 export function monthKey(iso: string): string {
   return iso.slice(0, 7);
 }

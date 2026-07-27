@@ -9,7 +9,34 @@ import {
 } from "../types";
 import { isMissingCell, parseDate, parseNumber } from "./values";
 import { FIELD_BY_ID } from "./fields";
-import { isoWeekKey } from "../week";
+import { daysBetween, isoWeekKey } from "../week";
+
+/**
+ * Fields a period report states as a total for the whole period. When such a
+ * report has no daily breakdown, these are divided evenly across the days so
+ * per-day KPIs (ARPDAU, IMPDAU) are not inflated by the period length.
+ */
+const PERIOD_TOTAL_FIELDS = new Set([
+  "adRevenue",
+  "iapRevenue",
+  "adImpressions",
+  "adRequests",
+  "matchedRequests",
+  "adClicks",
+  "adViewers",
+  "activeUsers",
+  "newUsers",
+  "sessions",
+  "playtimeSecondsTotal",
+  "crashes",
+  "crashedUsers",
+  "anrs",
+  "levelStarts",
+  "levelCompletions",
+]);
+
+/** Fields a period report already states as a per-day average — left untouched. */
+const DAILY_AVERAGE_FIELDS = new Set(["dau", "dav", "playtimeSecondsPerUser"]);
 
 export interface TransformContext {
   uploadId: string;
@@ -23,6 +50,11 @@ export interface TransformContext {
   build?: string;
   currency?: string;
   period?: { start: string; end: string };
+  /**
+   * Expand a dateless period report into one record per day, distributing
+   * period totals evenly. Set for reports such as the AdMob weekly export.
+   */
+  spreadAcrossPeriod?: boolean;
 }
 
 export interface TransformResult {
@@ -77,6 +109,10 @@ export function transform(
   const dateColumn = plan.findIndex((p) => p.targetField === "date");
   const buildColumns = active.filter((p) => p.build);
   const isWide = context.reportKind === "metric_by_build" && buildColumns.length > 0;
+  const spread =
+    (context.spreadAcrossPeriod ?? context.reportKind === "ad_performance_by_app") &&
+    dateColumn < 0 &&
+    Boolean(context.period);
 
   table.rows.forEach((row, rowIndex) => {
     const lineNumber = table.headerRowIndex + rowIndex + 2;
@@ -167,11 +203,57 @@ export function transform(
       return;
     }
 
-    // A per-row game/build/country column overrides the file-level default.
-    records.push(record as KpiRecord);
+    // A per-row game/build/country column overrides the file-level default,
+    // because setMetric writes those ids straight onto the record.
+    if (spread && context.period) {
+      records.push(...spreadRecord(record, context.period));
+    } else {
+      records.push(record as unknown as KpiRecord);
+    }
   });
 
+  if (spread && context.period && records.length > 0) {
+    issues.push({
+      id: nextIssueId(),
+      severity: "info",
+      category: "Period distributed across days",
+      description: `${context.fileName} reports one row per app for ${context.period.start} to ${context.period.end} with no daily breakdown. Period totals were divided evenly across the ${dayCountOf(context.period)} days.`,
+      resolution:
+        "Upload a daily export if day-level accuracy matters. Period-level KPIs remain correct either way.",
+      sourceFile: context.fileName,
+    });
+  }
+
   return { records, issues, skipped };
+}
+
+function dayCountOf(period: { start: string; end: string }): number {
+  return Math.max(1, daysBetween(period.start, period.end) + 1);
+}
+
+/** One record per day: period totals divided, per-day averages left as they are. */
+function spreadRecord(
+  record: Record<string, unknown>,
+  period: { start: string; end: string }
+): KpiRecord[] {
+  const days = dayCountOf(period);
+  const out: KpiRecord[] = [];
+  const start = new Date(period.start + "T00:00:00Z");
+
+  for (let i = 0; i < days; i++) {
+    const day = new Date(start);
+    day.setUTCDate(start.getUTCDate() + i);
+    const date = day.toISOString().slice(0, 10);
+    const copy: Record<string, unknown> = { ...record, id: uuid(), date, week: isoWeekKey(date) };
+
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value !== "number") continue;
+      if (DAILY_AVERAGE_FIELDS.has(key)) continue;
+      if (PERIOD_TOTAL_FIELDS.has(key)) copy[key] = value / days;
+    }
+    out.push(copy as unknown as KpiRecord);
+  }
+  return out;
 }
 
 /** Distinct dimension values present in a set of records, sorted naturally. */
