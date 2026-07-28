@@ -142,6 +142,26 @@ export function splitBuildSuffix(header: string): { base: string; build: string 
   return { base, build: match[2] };
 }
 
+/** ISO-3166 alpha-2 codes that appear as column suffixes in per-country exports. */
+const COUNTRY_CODES = new Set([
+  "US", "CA", "GB", "UK", "AU", "NZ", "IE", "IN", "PK", "BD", "LK", "JP", "KR",
+  "CN", "TW", "HK", "SG", "MY", "TH", "VN", "PH", "ID", "DE", "FR", "IT", "ES",
+  "PT", "NL", "BE", "AT", "CH", "SE", "NO", "DK", "FI", "PL", "CZ", "SK", "HU",
+  "RO", "BG", "GR", "TR", "RU", "UA", "BR", "MX", "AR", "CL", "CO", "PE", "ZA",
+  "EG", "NG", "KE", "MA", "SA", "AE", "IL", "QA", "KW",
+]);
+
+/** "Retention US" -> { base: "retention", country: "US" }. */
+export function splitCountrySuffix(header: string): { base: string; country: string } | null {
+  const match = header.trim().match(/^(.*?)[\s_-]+([A-Za-z]{2})$/);
+  if (!match) return null;
+  const code = match[2].toUpperCase();
+  if (!COUNTRY_CODES.has(code)) return null;
+  const base = normalizeHeader(match[1]);
+  if (!base) return null;
+  return { base, country: code === "UK" ? "GB" : code };
+}
+
 /** "Retention 3" -> 3. GameAnalytics numbers retention columns by day. */
 export function retentionDayFromHeader(header: string): number | null {
   const match = normalizeHeader(header).match(/^retention\s*(?:day\s*)?(\d+)$/);
@@ -208,6 +228,17 @@ export function detectReport(table: ParsedTable): DetectionResult {
     return { source: "gameanalytics", reportKind: "metric_by_build", confidence: 85, currency, notes };
   }
 
+  const countryColumns = table.headers.filter((h) => splitCountrySuffix(h) !== null);
+  if (hasDate && countryColumns.length >= 2) {
+    const countries = Array.from(
+      new Set(countryColumns.map((h) => splitCountrySuffix(h)!.country))
+    );
+    notes.push(
+      `Wide report split by country: ${countries.join(", ")}. Columns are unpivoted into country rows.`
+    );
+    return { source: "gameanalytics", reportKind: "metric_by_country", confidence: 82, currency, notes };
+  }
+
   if (hasDate) {
     notes.push("Row-per-date report.");
     return { source: "generic", reportKind: "long_format", confidence: 60, currency, notes };
@@ -250,6 +281,14 @@ export function buildColumnPlan(table: ParsedTable, kind: ReportKind): ColumnPla
   );
   const retentionIsFraction = looksLikeFractionRate(retentionSamples);
 
+  // Same file-level decision for country-split columns ("Retention US", …).
+  const countrySamples = table.headers.flatMap((header, index) =>
+    splitCountrySuffix(header) === null
+      ? []
+      : table.rows.map((r) => r[index] ?? "").filter((v) => !isMissingCell(v))
+  );
+  const countryIsFraction = looksLikeFractionRate(countrySamples);
+
   return table.headers.map((header, index) => {
     const samples = table.rows
       .slice(0, 12)
@@ -286,6 +325,21 @@ export function buildColumnPlan(table: ParsedTable, kind: ReportKind): ColumnPla
         dataType: "rate",
         fractionRate: retentionIsFraction,
         ignored: !(retentionDay <= 7 || retentionDay === 30),
+      };
+    }
+
+    const countrySplit = splitCountrySuffix(header);
+    if (kind === "metric_by_country" && countrySplit) {
+      const suggestion = suggestField(countrySplit.base);
+      const isRate = suggestion.field?.startsWith("retention") ?? false;
+      return {
+        ...base,
+        targetField: suggestion.field,
+        country: countrySplit.country,
+        confidence: suggestion.field ? Math.max(suggestion.confidence, 80) : 0,
+        ignored: false,
+        dataType: isRate ? "rate" : base.dataType,
+        fractionRate: isRate ? countryIsFraction : looksLikeFractionRate(samples),
       };
     }
 

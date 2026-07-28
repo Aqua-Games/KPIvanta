@@ -105,7 +105,12 @@ export const EXACT_HEADERS: Record<string, string> = {
   "total playtime": "playtimeSecondsTotal",
 
   "cohort size": "cohortSize",
+  // A bare "Retention" column (GameAnalytics explore exports split by country)
+  // reports day-1 retention.
+  retention: "retentionD1",
   "d1 retention": "retentionD1",
+  "retention d1": "retentionD1",
+  "retention d7": "retentionD7",
   "d3 retention": "retentionD3",
   "d7 retention": "retentionD7",
   "d30 retention": "retentionD30",

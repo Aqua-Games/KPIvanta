@@ -1,468 +1,502 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo } from "react";
-import { useData } from "@/store/useData";
-import { usePageTitle } from "@/components/usePageTitle";
-import { useStore } from "@/store/useStore";
-import { KpiRow } from "@/components/KpiRow";
-import { TrendChart } from "@/components/charts/TrendChart";
-import { RankedBarChart } from "@/components/charts/RankedBarChart";
-import { AlertsPanel } from "@/components/AlertsPanel";
+import { useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useReport, detectedGames } from "@/store/useReport";
+import { Dropzone } from "@/components/import/Dropzone";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { EmptyState, ExpectedFilesTable, NoResultsState } from "@/components/ui/States";
+import { ExpectedFilesTable, LoadingState } from "@/components/ui/States";
+import { KpiRow } from "@/components/KpiRow";
+import { TrendChart } from "@/components/charts/TrendChart";
+import { RetentionCurve } from "@/components/charts/RetentionCurve";
+import { RankedBarChart } from "@/components/charts/RankedBarChart";
+import { KpiComparisonTable, ComparisonColumn } from "@/components/KpiComparisonTable";
+import { AlertsPanel } from "@/components/AlertsPanel";
+import { TOKENS, seriesColor } from "@/components/charts/chartUtils";
 import { generateAlerts } from "@/lib/alerts";
-import { kpisFor } from "@/lib/kpi";
-import { groupedKpis } from "@/lib/select";
-import { performanceScore, scoreTone } from "@/lib/score";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
-import { weekLabel } from "@/lib/week";
-import { SOURCE_LABELS, SourceId } from "@/lib/types";
+import { dataDateRange, distinctValues, groupedKpis } from "@/lib/select";
+import { formatDate, formatFileSize, formatNumber, formatPercent } from "@/lib/format";
+import { rangeLabel } from "@/lib/week";
+import { exportRecordsCsv } from "@/lib/exportCsv";
+import { REPORT_KIND_LABELS, SOURCE_LABELS, SourceId } from "@/lib/types";
 
-export default function HomePage() {
-  usePageTitle("Dashboard Home");
-  const { hydrated, isDemo, current, previous, allRecords, filters, granularity, files } = useData();
-  const clearFilters = useStore((s) => s.clearFilters);
-  const setFilter = useStore((s) => s.setFilter);
+export default function Page() {
+  const phase = useReport((s) => s.phase);
+  return phase === "upload" ? <UploadScreen /> : <ReportScreen />;
+}
 
-  const currency = current[0]?.currency ?? "GBP";
+/* ------------------------------------------------------------------ */
+/* Upload                                                              */
+/* ------------------------------------------------------------------ */
+
+function UploadScreen() {
+  const {
+    files,
+    isProcessing,
+    game,
+    addFiles,
+    loadSampleFiles,
+    removeFile,
+    setGame,
+    generate,
+  } = useReport();
+
+  const games = useMemo(() => detectedGames(files), [files]);
+  const needsGameInput = files.length > 0 && games.length === 0;
+  const usable = files.filter((f) => f.status !== "error");
+  const canGenerate = usable.length > 0 && (games.length > 0 || game.trim() !== "");
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <div className="pt-4 text-center">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+          Build a KPI report from your CSV exports
+        </h2>
+        <p className="mx-auto mt-1 max-w-xl text-sm text-slate-500">
+          Drop in the exports for one app — DAU, retention, playtime, ad revenue. Nothing is saved
+          anywhere: the report lives in this tab and disappears when you close it.
+        </p>
+      </div>
+
+      <Dropzone onFiles={addFiles} busy={isProcessing} />
+
+      <p className="text-center text-xs text-slate-500">
+        No export handy?{" "}
+        <button
+          type="button"
+          onClick={loadSampleFiles}
+          disabled={isProcessing}
+          className="font-medium text-blue-700 underline hover:text-blue-800 disabled:opacity-50"
+        >
+          Load the bundled sample files
+        </button>
+      </p>
+
+      {isProcessing && <LoadingState label="Reading files…" />}
+
+      {files.length > 0 && (
+        <Card title={`Files (${files.length})`}>
+          <ul className="divide-y divide-slate-100">
+            {files.map((file) => (
+              <li key={file.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-800">{file.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {file.status === "error"
+                      ? (file.error ?? "Could not be read")
+                      : `${SOURCE_LABELS[file.source as SourceId] ?? file.source} · ${
+                          REPORT_KIND_LABELS[file.reportKind]
+                        } · ${formatNumber(file.recordCount)} rows · ${formatFileSize(file.size)}`}
+                  </p>
+                </div>
+
+                {file.status === "error" ? (
+                  <Badge tone="negative">Unreadable</Badge>
+                ) : file.period ? (
+                  <Badge tone="neutral">{rangeLabel(file.period)}</Badge>
+                ) : file.plan?.some((p) => p.targetField === "date" && !p.ignored) ? (
+                  <Badge tone="positive">Ready</Badge>
+                ) : (
+                  <Badge tone="neutral">Dates taken from the other files</Badge>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => removeFile(file.id)}
+                  className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <label htmlFor="report-game" className="block text-xs font-medium text-slate-600">
+                This report is for
+              </label>
+              {games.length > 0 ? (
+                <select
+                  id="report-game"
+                  value={game}
+                  onChange={(e) => setGame(e.target.value)}
+                  className="mt-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                >
+                  {games.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="report-game"
+                  value={game}
+                  onChange={(e) => setGame(e.target.value)}
+                  placeholder="App name"
+                  className="mt-1 w-64 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              )}
+              {needsGameInput && (
+                <p className="mt-1 text-xs text-slate-500">
+                  These files don&apos;t name the app, so type it once here.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={!canGenerate}
+              onClick={generate}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Generate report
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {files.length === 0 && !isProcessing && (
+        <Card title="What to upload">
+          <ExpectedFilesTable />
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Report                                                              */
+/* ------------------------------------------------------------------ */
+
+function ReportScreen() {
+  const { records, issues, game, files, reset } = useReport();
+  const [showNotes, setShowNotes] = useState(false);
+
+  const currency = records[0]?.currency ?? "GBP";
+  const range = useMemo(() => dataDateRange(records), [records]);
+  const builds = useMemo(() => distinctValues(records, "build"), [records]);
+  const countries = useMemo(() => distinctValues(records, "country"), [records]);
+  const sources = useMemo(() => distinctValues(records, "source"), [records]);
+
+  // Compare the later half of the covered span with the earlier half.
+  const { firstHalf, secondHalf, splitLabel } = useMemo(() => {
+    if (!range) return { firstHalf: [], secondHalf: records, splitLabel: null as string | null };
+    const dates = Array.from(new Set(records.map((r) => r.date).filter(Boolean))).sort() as string[];
+    if (dates.length < 6) return { firstHalf: [], secondHalf: records, splitLabel: null };
+    const mid = dates[Math.floor(dates.length / 2)];
+    return {
+      firstHalf: records.filter((r) => r.date && r.date < mid),
+      secondHalf: records.filter((r) => r.date && r.date >= mid),
+      splitLabel: mid,
+    };
+  }, [records, range]);
 
   const alerts = useMemo(
     () =>
       generateAlerts({
-        current,
-        previous,
-        periodLabel: filters.dateRange
-          ? `${formatDate(filters.dateRange.start)} – ${formatDate(filters.dateRange.end)}`
-          : "the selected period",
-        comparisonLabel: filters.compareRange
-          ? `${formatDate(filters.compareRange.start)} – ${formatDate(filters.compareRange.end)}`
-          : "the comparison period",
+        current: splitLabel ? secondHalf : records,
+        previous: firstHalf,
+        periodLabel: splitLabel ? "the later half of the period" : "the covered period",
+        comparisonLabel: "the earlier half of the period",
         currency,
       }),
-    [current, previous, filters, currency]
+    [records, firstHalf, secondHalf, splitLabel, currency]
   );
 
-  const score = useMemo(
-    () => performanceScore(kpisFor(current), kpisFor(previous)),
-    [current, previous]
-  );
+  // Two most recent builds with users, for the A/B table.
+  const buildColumns: ComparisonColumn[] = useMemo(() => {
+    const grouped = groupedKpis(records, "build").filter((g) => (g.dauTotal ?? 0) > 0);
+    const two = grouped.slice(-2);
+    return two.map((g) => ({
+      key: g.key,
+      label: `Build ${g.key}`,
+      values: g,
+      sampleDays: g.dayCount,
+      sampleUsers: g.dauTotal,
+    }));
+  }, [records]);
 
-  const gameRanking = useMemo(() => groupedKpis(current, "game"), [current]);
-  const games = useMemo(
-    () => new Set(allRecords.map((r) => r.game).filter(Boolean)).size,
-    [allRecords]
-  );
-  const weeks = useMemo(
-    () => new Set(allRecords.map((r) => r.week).filter(Boolean)),
-    [allRecords]
-  );
-  const latestUpload = useMemo(
-    () => [...files].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0],
-    [files]
-  );
+  const adoption = useMemo(() => {
+    const byDate = new Map<string, Record<string, number>>();
+    records.forEach((r) => {
+      if (!r.date || !r.build || r.dau === undefined) return;
+      const row = byDate.get(r.date) ?? {};
+      row[r.build] = (row[r.build] ?? 0) + r.dau;
+      byDate.set(r.date, row);
+    });
+    return {
+      data: Array.from(byDate.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, values]) => {
+          const total = Object.values(values).reduce((sum, v) => sum + v, 0);
+          const row: Record<string, number | string> = { date };
+          builds.forEach((b) => {
+            row[b] = total > 0 ? ((values[b] ?? 0) / total) * 100 : 0;
+          });
+          return row;
+        }),
+    };
+  }, [records, builds]);
 
-  if (!hydrated) {
-    return <div className="h-64 animate-pulse rounded-lg bg-white" aria-hidden="true" />;
-  }
+  const warnings = issues.filter((i) => i.severity !== "info");
+  const notes = issues.filter((i) => i.severity === "info");
 
-  if (allRecords.length === 0) {
+  if (records.length === 0) {
     return (
-      <EmptyState
-        title="No data has been imported yet"
-        description="Upload your weekly analytics exports to build the historical database. Each file below unlocks a different part of the dashboard."
-        action={{ href: "/import", label: "Go to Data Import" }}
-      >
-        <ExpectedFilesTable />
-      </EmptyState>
+      <div className="mx-auto max-w-xl pt-8 text-center">
+        <p className="text-sm text-slate-600">
+          Nothing in the uploaded files matched <strong>{game}</strong>.
+        </p>
+        <button
+          type="button"
+          onClick={reset}
+          className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Start over
+        </button>
+      </div>
     );
   }
 
-  if (current.length === 0) {
-    return <NoResultsState onClear={clearFilters} />;
-  }
-
-  const ranked = gameRanking.filter((g) => g.arpdau !== null);
-  const best = [...ranked].sort((a, b) => (b.arpdau ?? 0) - (a.arpdau ?? 0))[0];
-  const worst = [...ranked].sort((a, b) => (a.arpdau ?? 0) - (b.arpdau ?? 0))[0];
-
   return (
     <div className="space-y-4">
-      <section aria-label="Database summary" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
-          label="Games tracked"
-          value={formatNumber(games)}
-          hint="Distinct titles in the database"
-        />
-        <SummaryCard
-          label="Weeks of history"
-          value={formatNumber(weeks.size)}
-          hint={
-            weeks.size > 0
-              ? `Latest: ${weekLabel(Array.from(weeks).sort().pop() ?? "")}`
-              : "No weeks recorded"
-          }
-        />
-        <SummaryCard
-          label="Records stored"
-          value={formatNumber(allRecords.length)}
-          hint={isDemo ? "Sample dataset — import files to replace" : `${files.length} file(s) imported`}
-        />
-        <SummaryCard
-          label="Latest upload"
-          value={latestUpload ? latestUpload.name : "None"}
-          hint={latestUpload ? formatDateTime(latestUpload.uploadedAt) : "Import a file to begin"}
-        />
-      </section>
-
-      <section aria-label="Performance summary" className="grid gap-3 lg:grid-cols-3">
-        <Card
-          title="Performance score"
-          question="Is this period better or worse than the comparison period overall?"
-          tooltip="A weighted composite of retention, engagement, monetization and stability KPIs. 50 means level with the comparison period. KPIs without comparable data are excluded, and coverage shows how much of the KPI set was usable."
-        >
-          <div className="flex items-baseline gap-2">
-            <span
-              className={`tabular text-4xl font-semibold ${
-                scoreTone(score.value) === "positive"
-                  ? "text-emerald-600"
-                  : scoreTone(score.value) === "negative"
-                    ? "text-red-600"
-                    : "text-slate-900"
-              }`}
-            >
-              {score.value ?? "N/A"}
-            </span>
-            <span className="text-sm text-slate-500">/ 100</span>
-          </div>
-          <p className="mt-2 text-sm text-slate-600">{score.interpretation}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Coverage: {score.coverage.toFixed(0)}% of the scored KPI set had data in both periods.
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">{game}</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {range ? rangeLabel(range) : ""} ·{" "}
+            {sources.map((s) => SOURCE_LABELS[s as SourceId] ?? s).join(", ")} · {files.length}{" "}
+            file(s) · {formatNumber(records.length)} records
+            {builds.length > 0 && ` · builds ${builds.join(", ")}`}
           </p>
-        </Card>
-
-        <Card title="Best performing game" question="Which title earns most per active user?">
-          {best ? (
-            <>
-              <p className="text-base font-semibold text-slate-900">{best.key}</p>
-              <dl className="mt-2 space-y-1 text-sm text-slate-600">
-                <Stat label="ARPDAU" value={best.arpdau} format="currency" currency={currency} />
-                <Stat label="D1 retention" value={best.retentionD1} format="percent" />
-                <Stat label="Average DAU" value={best.dau} format="number" />
-              </dl>
-              <button
-                type="button"
-                onClick={() => setFilter("games", [best.key])}
-                className="mt-3 text-xs font-medium text-blue-700 hover:underline"
-              >
-                Filter the dashboard to {best.key} →
-              </button>
-            </>
-          ) : (
-            <p className="text-sm text-slate-500">
-              No game reports both revenue and DAU, so ARPDAU cannot be ranked.
-            </p>
-          )}
-        </Card>
-
-        <Card title="Needs attention" question="Which title earns least per active user?">
-          {worst && best && worst.key !== best.key ? (
-            <>
-              <p className="text-base font-semibold text-slate-900">{worst.key}</p>
-              <dl className="mt-2 space-y-1 text-sm text-slate-600">
-                <Stat label="ARPDAU" value={worst.arpdau} format="currency" currency={currency} />
-                <Stat label="D1 retention" value={worst.retentionD1} format="percent" />
-                <Stat label="Average DAU" value={worst.dau} format="number" />
-              </dl>
-              <button
-                type="button"
-                onClick={() => setFilter("games", [worst.key])}
-                className="mt-3 text-xs font-medium text-blue-700 hover:underline"
-              >
-                Filter the dashboard to {worst.key} →
-              </button>
-            </>
-          ) : (
-            <p className="text-sm text-slate-500">
-              At least two games reporting revenue and DAU are needed to rank a weakest title.
-            </p>
-          )}
-        </Card>
-      </section>
-
-      <Card
-        title="Games at a glance"
-        question="What is each title, where does it run, and how is it doing?"
-        tooltip="One row per game in the selected period. KPIs are aggregate-correct: retention weighted by cohort, per-user figures divided from totals. Click a game to filter the whole dashboard to it."
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] border-collapse text-left text-sm">
-            <caption className="sr-only">Key information and KPIs for each game</caption>
-            <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <th scope="col" className="py-2 pr-3 font-medium">Game</th>
-                <th scope="col" className="py-2 pr-3 font-medium">Platform</th>
-                <th scope="col" className="py-2 pr-3 font-medium">Builds</th>
-                <th scope="col" className="py-2 pr-3 font-medium">Countries</th>
-                <th scope="col" className="py-2 pr-3 font-medium">Data sources</th>
-                <th scope="col" className="py-2 pr-3 text-right font-medium">Days of data</th>
-                <th scope="col" className="py-2 pr-3 text-right font-medium">Avg DAU</th>
-                <th scope="col" className="py-2 pr-3 text-right font-medium">D1</th>
-                <th scope="col" className="py-2 pr-3 text-right font-medium">Playtime/user</th>
-                <th scope="col" className="py-2 pr-3 text-right font-medium">Revenue</th>
-                <th scope="col" className="py-2 text-right font-medium">ARPDAU</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gameRanking.map((game) => {
-                const platforms = Array.from(
-                  new Set(game.records.map((r) => r.platform).filter(Boolean))
-                );
-                const builds = Array.from(
-                  new Set(game.records.map((r) => r.build).filter(Boolean))
-                ).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
-                const countries = Array.from(
-                  new Set(game.records.map((r) => r.country).filter(Boolean))
-                );
-                const gameSources = Array.from(
-                  new Set(game.records.flatMap((r) => r.sources ?? [r.source]))
-                );
-                return (
-                  <tr
-                    key={game.key}
-                    className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70"
-                  >
-                    <th scope="row" className="py-2 pr-3 text-left">
-                      <button
-                        type="button"
-                        onClick={() => setFilter("games", [game.key])}
-                        className="font-medium text-blue-700 hover:underline"
-                        title={`Filter the dashboard to ${game.key}`}
-                      >
-                        {game.key}
-                      </button>
-                    </th>
-                    <td className="py-2 pr-3 text-slate-600">
-                      {platforms.join(", ") || "Not reported"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-600">
-                      {builds.length > 0 ? (
-                        <span title={builds.join(", ")}>
-                          {builds.length} ({builds.slice(-2).join(", ")}
-                          {builds.length > 2 ? " latest" : ""})
-                        </span>
-                      ) : (
-                        "Not reported"
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-600">
-                      {countries.length > 0 ? countries.join(", ") : "All countries"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-600">
-                      {gameSources.map((s) => SOURCE_LABELS[s as SourceId] ?? s).join(", ")}
-                    </td>
-                    <td className="tabular py-2 pr-3 text-right text-slate-600">
-                      {formatNumber(game.dayCount)}
-                    </td>
-                    <td className="tabular py-2 pr-3 text-right text-slate-900">
-                      {game.dau === null ? "N/A" : formatNumber(Math.round(game.dau))}
-                    </td>
-                    <td className="tabular py-2 pr-3 text-right text-slate-900">
-                      {game.retentionD1 === null ? "N/A" : `${game.retentionD1.toFixed(1)}%`}
-                    </td>
-                    <td className="tabular py-2 pr-3 text-right text-slate-900">
-                      {game.playtimePerUserSeconds === null
-                        ? "N/A"
-                        : `${Math.round(game.playtimePerUserSeconds / 60)}m`}
-                    </td>
-                    <td className="tabular py-2 pr-3 text-right text-slate-900">
-                      {game.totalRevenue === null
-                        ? "N/A"
-                        : new Intl.NumberFormat("en-GB", {
-                            style: "currency",
-                            currency,
-                            maximumFractionDigits: 0,
-                          }).format(game.totalRevenue)}
-                    </td>
-                    <td className="tabular py-2 text-right text-slate-900">
-                      {game.arpdau === null
-                        ? "N/A"
-                        : new Intl.NumberFormat("en-GB", {
-                            style: "currency",
-                            currency,
-                            maximumFractionDigits: 4,
-                          }).format(game.arpdau)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
-      </Card>
+        <div className="flex items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={() => exportRecordsCsv(records, `${game.replace(/\W+/g, "-")}-kpis.csv`)}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Print
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            New report
+          </button>
+        </div>
+      </div>
 
-      <h2 className="pt-1 text-sm font-semibold text-slate-900">Headline KPIs</h2>
+      {warnings.length > 0 && (
+        <div
+          role="note"
+          className="rounded-md bg-amber-50 px-4 py-2.5 text-sm text-amber-900 ring-1 ring-inset ring-amber-600/20"
+        >
+          {warnings.length} data warning(s):{" "}
+          {warnings
+            .slice(0, 2)
+            .map((w) => w.description)
+            .join(" ")}{" "}
+          {warnings.length > 2 && `+${warnings.length - 2} more below.`}
+        </div>
+      )}
+
+      <h3 className="pt-1 text-sm font-semibold text-slate-900">Headline KPIs</h3>
       <KpiRow
-        metrics={[
-          "dau",
-          "retentionD1",
-          "retentionD7",
-          "playtimePerUserSeconds",
-          "arpdau",
-          "impdau",
-          "sessionsPerUser",
-          "crashRate",
-        ]}
-        records={current}
-        compareRecords={previous}
-        granularity={granularity}
+        metrics={["dau", "playtimePerUserSeconds", "sessionsPerUser", "retentionD1"]}
+        records={records}
+        compareRecords={firstHalf.length > 0 ? firstHalf : []}
+        granularity="daily"
+        currency={currency}
+      />
+      <KpiRow
+        metrics={["totalRevenue", "arpdau", "impdau", "ecpm"]}
+        records={records}
+        compareRecords={firstHalf.length > 0 ? firstHalf : []}
+        granularity="daily"
         currency={currency}
       />
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <TrendChart
-          id="dau-trend"
-          title="DAU trend"
-          question="Is the active player base growing?"
-          records={current}
-          compareRecords={previous}
+          id="report-dau"
+          title="DAU by build"
+          question="Which builds carry the player base?"
+          records={records}
           metrics={["dau"]}
-          granularity={granularity}
+          splitBy="build"
+          granularity="daily"
+          currency={currency}
+        />
+        <RetentionCurve
+          id="report-retention"
+          records={records}
+          title="Retention curve (D1–D7)"
+          question="How quickly do new players stop coming back?"
+        />
+        <TrendChart
+          id="report-playtime"
+          title="Playtime per user"
+          question="Are sessions getting longer or shorter?"
+          records={records}
+          metrics={["playtimePerUserSeconds"]}
+          granularity="daily"
           currency={currency}
         />
         <TrendChart
-          id="revenue-trend"
-          title="Revenue trend"
-          question="Is revenue tracking the player base?"
-          records={current}
-          compareRecords={previous}
+          id="report-revenue"
+          title="Revenue"
+          question="Is daily revenue rising or falling?"
+          records={records}
           metrics={["totalRevenue"]}
-          granularity={granularity}
+          granularity="daily"
           currency={currency}
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      {countries.length >= 2 && (
         <RankedBarChart
-          id="game-ranking"
-          title="Game comparison"
-          question="Which titles lead on the selected KPI?"
-          records={current}
-          dimension="game"
-          metrics={["arpdau", "dau", "retentionD1", "impdau"]}
+          id="report-countries"
+          title="Country comparison"
+          question="Which markets keep and monetize players best?"
+          records={records}
+          dimension="country"
+          metrics={["retentionD1", "dau", "arpdau", "totalRevenue"]}
           currency={currency}
-          onSelect={(key) => setFilter("games", [key])}
         />
-        <AlertsPanel alerts={alerts} limit={6} />
-      </div>
+      )}
 
-      <Card title="Recent uploads" question="What is in the historical database?">
-        {files.length === 0 ? (
-          <p className="py-4 text-sm text-slate-500">
-            No files imported yet — the dashboard is showing the demo dataset.{" "}
-            <Link href="/import" className="font-medium text-blue-700 hover:underline">
-              Import a file
-            </Link>
-            .
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-              <caption className="sr-only">Files imported into the historical database</caption>
-              <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th scope="col" className="py-2 pr-3 font-medium">File</th>
-                  <th scope="col" className="py-2 pr-3 font-medium">Source</th>
-                  <th scope="col" className="py-2 pr-3 font-medium">Game</th>
-                  <th scope="col" className="py-2 pr-3 text-right font-medium">Records</th>
-                  <th scope="col" className="py-2 pr-3 font-medium">Uploaded</th>
-                  <th scope="col" className="py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...files]
-                  .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
-                  .slice(0, 6)
-                  .map((file) => (
-                    <tr key={file.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
-                      <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
-                        {file.name}
-                      </th>
-                      <td className="py-2 pr-3 text-slate-600">
-                        {SOURCE_LABELS[file.source as SourceId] ?? file.source}
-                      </td>
-                      <td className="py-2 pr-3 text-slate-600">{file.game ?? "—"}</td>
-                      <td className="tabular py-2 pr-3 text-right text-slate-600">
-                        {formatNumber(file.importedRecordCount)}
-                      </td>
-                      <td className="py-2 pr-3 text-slate-600">{formatDateTime(file.uploadedAt)}</td>
-                      <td className="py-2">
-                        <Badge
-                          tone={
-                            file.status === "imported"
-                              ? "positive"
-                              : file.status === "error" || file.status === "duplicate"
-                                ? "negative"
-                                : file.status === "partial"
-                                  ? "warning"
-                                  : "neutral"
-                          }
-                        >
-                          {file.status.replace(/_/g, " ")}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+      {buildColumns.length === 2 && (
+        <KpiComparisonTable
+          columns={buildColumns}
+          currency={currency}
+          title={`${buildColumns[0].label} vs ${buildColumns[1].label}`}
+          question="Did the newer build improve or damage the KPIs?"
+        />
+      )}
+
+      {adoption.data.length > 1 && builds.length > 1 && (
+        <Card
+          title="Build rollout"
+          question="What share of players is on each build?"
+          tooltip="Share of daily active users by build. A large share left on old builds limits what a new release can move."
+        >
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={adoption.data} margin={{ top: 6, right: 12, bottom: 4, left: 0 }}>
+                <CartesianGrid vertical={false} stroke={TOKENS.grid} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={28}
+                  tickFormatter={(v: string) => v.slice(5)}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={44}
+                  domain={[0, 100]}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                <Tooltip
+                  formatter={(value, name) => [
+                    formatPercent(typeof value === "number" ? value : null),
+                    `Build ${String(name)}`,
+                  ]}
+                  labelFormatter={(label) => formatDate(String(label))}
+                  contentStyle={{ fontSize: 12, borderRadius: 6, borderColor: "#e2e8f0" }}
+                />
+                {builds.map((build, index) => (
+                  <Area
+                    key={build}
+                    type="monotone"
+                    dataKey={build}
+                    stackId="rollout"
+                    stroke={seriesColor(index)}
+                    fill={seriesColor(index)}
+                    fillOpacity={0.75}
+                    isAnimationActive={false}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        )}
-      </Card>
-    </div>
-  );
-}
+          <div className="mt-2 flex flex-wrap gap-3">
+            {builds.map((build, index) => (
+              <span key={build} className="flex items-center gap-1.5 text-xs text-slate-600">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: seriesColor(index) }}
+                />
+                Build {build}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
 
-function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="panel p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-xl font-semibold text-slate-900" title={value}>
-        {value}
-      </p>
-      <p className="mt-0.5 truncate text-xs text-slate-500">{hint}</p>
-    </div>
-  );
-}
+      <AlertsPanel alerts={alerts} title="What stands out" />
 
-function Stat({
-  label,
-  value,
-  format,
-  currency,
-}: {
-  label: string;
-  value: number | null;
-  format: "currency" | "percent" | "number";
-  currency?: string;
-}) {
-  const display =
-    value === null
-      ? "N/A"
-      : format === "currency"
-        ? new Intl.NumberFormat("en-GB", {
-            style: "currency",
-            currency: currency ?? "GBP",
-            maximumFractionDigits: 4,
-          }).format(value)
-        : format === "percent"
-          ? `${value.toFixed(1)}%`
-          : formatNumber(Math.round(value));
-
-  return (
-    <div className="flex justify-between gap-3">
-      <dt>{label}</dt>
-      <dd className="tabular font-medium text-slate-900">{display}</dd>
+      {(warnings.length > 0 || notes.length > 0) && (
+        <Card
+          title={`Data notes (${issues.length})`}
+          actions={
+            <button
+              type="button"
+              onClick={() => setShowNotes((v) => !v)}
+              aria-expanded={showNotes}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {showNotes ? "Hide" : "Show"}
+            </button>
+          }
+        >
+          {showNotes ? (
+            <ul className="space-y-1.5">
+              {issues.map((issue) => (
+                <li
+                  key={issue.id}
+                  className={`rounded-md px-3 py-2 text-xs ${
+                    issue.severity === "error"
+                      ? "bg-red-50 text-red-800"
+                      : issue.severity === "warning"
+                        ? "bg-amber-50 text-amber-900"
+                        : "bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  <span className="font-semibold">{issue.category}:</span> {issue.description}{" "}
+                  <span className="opacity-75">{issue.resolution}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">
+              {warnings.length} warning(s) and {notes.length} note(s) about how the numbers were
+              put together.
+            </p>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

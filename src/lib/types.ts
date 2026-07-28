@@ -38,6 +38,7 @@ export const SOURCE_COLORS: Record<SourceId, string> = {
 export type ReportKind =
   | "retention_by_day" // Date + Retention 1..N columns
   | "metric_by_build" // Date + "<Metric> <build>" columns (DAU 2.0, Playtime per user 1.9)
+  | "metric_by_country" // Date + "<Metric> <CC>" columns (Retention US, Retention JP)
   | "ad_performance_by_app" // one row per app, no date (AdMob export)
   | "long_format" // already one row per date/dimension combination
   | "unknown";
@@ -45,6 +46,7 @@ export type ReportKind =
 export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
   retention_by_day: "Retention by day (D1–D7)",
   metric_by_build: "Metric split by build",
+  metric_by_country: "Metric split by country",
   ad_performance_by_app: "Ad performance by app",
   long_format: "Row-per-record report",
   unknown: "Unrecognised layout",
@@ -175,6 +177,8 @@ export interface ColumnPlan {
   targetField: string | null;
   /** Build/version extracted from a wide column header, e.g. "DAU 2.0" -> "2.0". */
   build?: string;
+  /** Country code extracted from a wide column header, e.g. "Retention US" -> "US". */
+  country?: string;
   /** Retention day index extracted from "Retention 3" -> 3. */
   retentionDay?: number;
   confidence: number; // 0-100

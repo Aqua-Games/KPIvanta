@@ -107,8 +107,12 @@ export function transform(
 
   const active = plan.filter((p) => !p.ignored && p.targetField);
   const dateColumn = plan.findIndex((p) => p.targetField === "date");
-  const buildColumns = active.filter((p) => p.build);
-  const isWide = context.reportKind === "metric_by_build" && buildColumns.length > 0;
+  // Wide reports split one metric across dimension-suffixed columns:
+  // by build ("DAU 2.0") or by country ("Retention US").
+  const dimensionColumns = active.filter((p) => p.build || p.country);
+  const isWide =
+    (context.reportKind === "metric_by_build" || context.reportKind === "metric_by_country") &&
+    dimensionColumns.length > 0;
   const spread =
     (context.spreadAcrossPeriod ?? context.reportKind === "ad_performance_by_app") &&
     dateColumn < 0 &&
@@ -150,8 +154,8 @@ export function transform(
     };
 
     if (isWide) {
-      // One output record per build present on this row.
-      const byBuild = new Map<string, Record<string, unknown>>();
+      // One output record per build/country present on this row.
+      const byDimension = new Map<string, Record<string, unknown>>();
       const shared: Record<string, unknown> = {};
 
       plan.forEach((column, columnIndex) => {
@@ -159,28 +163,35 @@ export function transform(
         const raw = row[columnIndex] ?? "";
         if (isMissingCell(raw)) return;
 
-        if (column.build) {
-          const bucket = byBuild.get(column.build) ?? {};
+        const dimensionKey = column.build
+          ? `b|${column.build}`
+          : column.country
+            ? `c|${column.country}`
+            : null;
+        if (dimensionKey) {
+          const bucket = byDimension.get(dimensionKey) ?? {};
           setMetric(bucket, column.targetField, raw, column);
-          byBuild.set(column.build, bucket);
+          byDimension.set(dimensionKey, bucket);
         } else {
           setMetric(shared, column.targetField, raw, column);
         }
       });
 
-      if (byBuild.size === 0) {
+      if (byDimension.size === 0) {
         skipped++;
         return;
       }
 
-      byBuild.forEach((metrics, build) => {
+      byDimension.forEach((metrics, dimensionKey) => {
         if (Object.keys(metrics).length === 0) return;
+        const kindTag = dimensionKey.slice(0, 1);
+        const value = dimensionKey.slice(2);
         records.push({
           id: uuid(),
           ...baseDimensions,
           ...shared,
           ...metrics,
-          build,
+          ...(kindTag === "b" ? { build: value } : { country: value }),
         } as KpiRecord);
       });
       return;

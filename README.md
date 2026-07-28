@@ -1,6 +1,6 @@
 # KPIvantra
 
-KPI analytics dashboard for mobile games — weekly reports, build (A/B) comparison, historical trends, monetization and data-quality checks. Built with Next.js, TypeScript, Tailwind CSS and Recharts. Developed by Aqua Games.
+Upload your game analytics CSV exports, get an instant KPI report for one app — DAU, retention (D1–D7), playtime, revenue, ARPDAU, IMPDAU, eCPM and build comparison. Built with Next.js, TypeScript, Tailwind CSS and Recharts. Developed by Aqua Games.
 
 ## Requirements
 
@@ -16,7 +16,17 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000**. The dashboard starts with generated sample figures so every page is explorable immediately.
+Open **http://localhost:3000**.
+
+## How it works
+
+1. Drag in your CSV exports (GameAnalytics, AdMob, or generic). Encoding, delimiter, header row and report type are detected automatically.
+2. If a file has no date column (like the AdMob weekly export), set the week it covers. If no file names the app, type the app name once.
+3. Click **Generate report**.
+
+Nothing is saved anywhere — the report lives in the browser tab and is gone when you close it. **New report** starts over.
+
+No export handy? Click **"Load the bundled sample files"** on the upload screen.
 
 ## Production build
 
@@ -24,23 +34,3 @@ Open **http://localhost:3000**. The dashboard starts with generated sample figur
 npm run build
 npm start
 ```
-
-## Importing your data
-
-1. Go to **Data Import** and drag in your CSV exports (GameAnalytics, AdMob, or generic). Multiple files at once is fine — encoding, delimiter, header row and report type are detected automatically.
-2. Set the one or two things a file can't tell us: the **game name** (when the file has no game column) and the **reporting period** (for dateless exports such as the AdMob weekly report).
-3. Review the suggested column mapping, then **Import into database**.
-
-No export handy? Click **"Load the bundled sample files"** on the Data Import page.
-
-Everything is stored locally in your browser (localStorage) — there is no backend and no data leaves your machine. **Clear database** on the Data Import page resets it.
-
-## Useful commands
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Development server on port 3000 |
-| `npm run build` | Production build |
-| `npm start` | Serve the production build |
-| `npx tsc --noEmit` | Type check |
-| `npx eslint src` | Lint |
