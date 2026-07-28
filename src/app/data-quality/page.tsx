@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/States";
@@ -21,6 +22,11 @@ const SEVERITY_TONE: Record<IssueSeverity, "negative" | "warning" | "neutral"> =
 const COVERAGE_FIELDS: { field: keyof KpiRecord; label: string; unlocks: string }[] = [
   { field: "dau", label: "DAU", unlocks: "Every per-user KPI: ARPDAU, IMPDAU, sessions per user" },
   { field: "retentionD1", label: "D1 retention", unlocks: "D1 retention and the retention curve" },
+  { field: "retentionD2", label: "D2 retention", unlocks: "D2 retention on the curve and comparison tables" },
+  { field: "retentionD3", label: "D3 retention", unlocks: "D3 retention KPI" },
+  { field: "retentionD4", label: "D4 retention", unlocks: "D4 retention on the curve and comparison tables" },
+  { field: "retentionD5", label: "D5 retention", unlocks: "D5 retention on the curve and comparison tables" },
+  { field: "retentionD6", label: "D6 retention", unlocks: "D6 retention on the curve and comparison tables" },
   { field: "retentionD7", label: "D7 retention", unlocks: "D7 retention and cohort maturity" },
   { field: "playtimeSecondsPerUser", label: "Playtime per user", unlocks: "Playtime KPIs" },
   { field: "adRevenue", label: "Ad revenue", unlocks: "ARPDAU Ads, eCPM, revenue trends" },
@@ -33,6 +39,7 @@ const COVERAGE_FIELDS: { field: keyof KpiRecord; label: string; unlocks: string 
 ];
 
 export default function DataQualityPage() {
+  usePageTitle("Data Quality");
   const { hydrated, issues, allRecords, files, isDemo } = useData();
   const [severityFilter, setSeverityFilter] = useState<IssueSeverity | "all">("all");
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -74,7 +81,7 @@ export default function DataQualityPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Data quality</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Data Quality</h2>
           <p className="text-sm text-slate-500">
             Structural, range and consistency checks across{" "}
             {isDemo ? "the demo dataset" : `${files.length} imported file(s)`}.
@@ -134,7 +141,7 @@ export default function DataQualityPage() {
             </thead>
             <tbody>
               {coverage.map((row) => (
-                <tr key={String(row.field)} className="border-b border-slate-100 last:border-0">
+                <tr key={String(row.field)} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
                   <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
                     {row.label}
                   </th>
@@ -295,7 +302,7 @@ function CountCard({
           ? "text-blue-700"
           : "text-slate-700";
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="panel p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`tabular mt-1 text-2xl font-semibold ${color}`}>{formatNumber(value)}</p>
       <p className="mt-0.5 text-xs text-slate-500">{hint}</p>

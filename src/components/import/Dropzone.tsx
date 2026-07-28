@@ -38,10 +38,22 @@ export function Dropzone({
         accept(e.dataTransfer.files);
       }}
       className={clsx(
-        "rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors",
-        dragging ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-white"
+        "rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all",
+        dragging ? "scale-[1.005] border-blue-500 bg-blue-50" : "border-slate-300 bg-white"
       )}
     >
+      <span
+        aria-hidden="true"
+        className={clsx(
+          "mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full transition-colors",
+          dragging ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
+        )}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 16V4m0 0 4 4m-4-4-4 4" />
+          <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+        </svg>
+      </span>
       <p className="text-sm font-medium text-slate-900">
         Drag weekly CSV exports here, or browse for them
       </p>

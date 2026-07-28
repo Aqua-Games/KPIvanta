@@ -2,12 +2,13 @@
 
 import { useMemo } from "react";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { useStore } from "@/store/useStore";
 import { KpiRow } from "@/components/KpiRow";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { RankedBarChart } from "@/components/charts/RankedBarChart";
 import { Card } from "@/components/ui/Card";
-import { DemoBanner, EmptyState, ExpectedFilesTable, NoResultsState } from "@/components/ui/States";
+import { EmptyState, ExpectedFilesTable, NoResultsState } from "@/components/ui/States";
 import { groupedKpis } from "@/lib/select";
 import { kpisFor } from "@/lib/kpi";
 import { formatCurrencyPrecise, formatNumber, formatPercent } from "@/lib/format";
@@ -15,7 +16,8 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { seriesColor } from "@/components/charts/chartUtils";
 
 export default function MonetizationPage() {
-  const { hydrated, isDemo, current, previous, allRecords, granularity } = useData();
+  usePageTitle("Monetization");
+  const { hydrated, current, previous, allRecords, granularity } = useData();
   const clearFilters = useStore((s) => s.clearFilters);
   const setFilter = useStore((s) => s.setFilter);
 
@@ -88,8 +90,6 @@ export default function MonetizationPage() {
 
   return (
     <div className="space-y-4">
-      {isDemo && <DemoBanner />}
-
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Monetization</h2>
         <p className="text-sm text-slate-500">
@@ -305,7 +305,7 @@ export default function MonetizationPage() {
             </thead>
             <tbody>
               {groupedKpis(current, "build").map((group) => (
-                <tr key={group.key} className="border-b border-slate-100 last:border-0">
+                <tr key={group.key} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
                   <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
                     {group.key}
                   </th>

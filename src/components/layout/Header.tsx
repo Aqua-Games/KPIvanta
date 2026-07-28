@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { useData } from "@/store/useData";
-import { Badge } from "../ui/Badge";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { exportRecordsCsv } from "@/lib/exportCsv";
 import { addDays } from "@/lib/week";
@@ -16,7 +15,7 @@ const PRESETS = [
 ];
 
 export function Header() {
-  const { isDemo, hydrated, filters, fullRange, current, lastRefresh, facets } = useData();
+  const { hydrated, filters, fullRange, current, lastRefresh, facets } = useData();
   const setDateRange = useStore((s) => s.setDateRange);
   const setComparisonMode = useStore((s) => s.setComparisonMode);
   const comparisonMode = useStore((s) => s.comparisonMode);
@@ -34,15 +33,22 @@ export function Header() {
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-sm"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <path d="M4 19V11M10 19V5M16 19v-8M21 19H3" />
+            </svg>
+          </span>
           <div>
-            <h1 className="text-base font-semibold text-slate-900">
-              Game Analytics Performance Dashboard
+            <h1 className="text-base font-semibold tracking-tight text-slate-900">
+              KPIvantra
             </h1>
             <p className="text-xs text-slate-500">
-              Weekly KPI reporting, build comparison and historical trends
+              KPI reporting, build comparison and historical trends
             </p>
           </div>
-          {hydrated && isDemo && <Badge tone="warning">Demo data</Badge>}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

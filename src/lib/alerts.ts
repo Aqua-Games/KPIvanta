@@ -49,7 +49,11 @@ interface AlertInput {
 /** KPIs worth alerting on, in the order the PRD lists them. */
 const WATCHED: KpiId[] = [
   "retentionD1",
+  "retentionD2",
   "retentionD3",
+  "retentionD4",
+  "retentionD5",
+  "retentionD6",
   "retentionD7",
   "dau",
   "playtimePerUserSeconds",
@@ -142,7 +146,7 @@ export function generateAlerts({
     const latest = ordered[ordered.length - 1];
     const prior = ordered[ordered.length - 2];
 
-    for (const id of ["retentionD1", "retentionD7", "crashRate", "arpdau"] as KpiId[]) {
+    for (const id of ["retentionD1", "retentionD2", "retentionD3", "retentionD7", "crashRate", "arpdau"] as KpiId[]) {
       const change = percentChange(latest[id], prior[id]);
       if (change === null || Math.abs(change) < thresholds.minChange) continue;
       const definition = KPI_DEFINITIONS.find((d) => d.id === id);

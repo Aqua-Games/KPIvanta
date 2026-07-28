@@ -116,7 +116,7 @@ export function KpiComparisonTable({
               const status = changeStatus(definition.id, change);
 
               return (
-                <tr key={definition.id} className="border-b border-slate-100 last:border-0">
+                <tr key={definition.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
                   <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
                     <span className="flex items-center gap-1.5">
                       {definition.label}

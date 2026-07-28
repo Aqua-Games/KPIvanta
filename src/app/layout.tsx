@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mobile Game KPI Analytics",
+  title: "KPIvantra",
   description:
-    "Acquisition, monetization, engagement and app-version analytics for mobile game businesses",
+    "KPI reporting, build comparison and historical trends for mobile games",
 };
 
 export default function RootLayout({
@@ -41,9 +41,17 @@ export default function RootLayout({
         <Header />
         <Nav />
         <FilterBar />
-        <main id="main-content" className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6">
+        <main id="main-content" className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6">
           {children}
         </main>
+        <footer className="border-t border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-slate-500 sm:px-6">
+            <span className="font-medium text-slate-600">KPIvantra</span>
+            <span>
+              Developed by <span className="font-medium text-slate-700">Aqua Games</span>
+            </span>
+          </div>
+        </footer>
       </body>
     </html>
   );

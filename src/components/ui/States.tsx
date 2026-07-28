@@ -13,7 +13,15 @@ export function EmptyState({
   action?: { href: string; label: string };
 }) {
   return (
-    <div className="flex flex-col items-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+    <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+      <span
+        aria-hidden="true"
+        className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600"
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 19V11M10 19V5M16 19v-8M21 19H3" />
+        </svg>
+      </span>
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       <p className="mt-1 max-w-xl text-sm text-slate-500">{description}</p>
       {children && <div className="mt-5 w-full max-w-3xl text-left">{children}</div>}
@@ -111,7 +119,7 @@ export function ExpectedFilesTable() {
         </thead>
         <tbody>
           {EXPECTED_FILES.map((row) => (
-            <tr key={row.file} className="border-b border-slate-100 last:border-0">
+            <tr key={row.file} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
               <th scope="row" className="px-3 py-2 align-top font-medium text-slate-800">
                 {row.file}
               </th>
@@ -121,23 +129,6 @@ export function ExpectedFilesTable() {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-export function DemoBanner() {
-  return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
-      <p className="text-sm text-amber-900">
-        <span className="font-semibold">Demo data.</span> Every figure below is generated so the
-        dashboard can be explored before any upload. It is replaced the moment you import a real file.
-      </p>
-      <Link
-        href="/import"
-        className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
-      >
-        Import real data
-      </Link>
     </div>
   );
 }

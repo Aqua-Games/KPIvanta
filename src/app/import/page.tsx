@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { Dropzone } from "@/components/import/Dropzone";
 import { ColumnMapper } from "@/components/import/ColumnMapper";
 import { Card } from "@/components/ui/Card";
@@ -47,6 +48,7 @@ const STATUS_META: Record<ImportStatus, { tone: "positive" | "negative" | "warni
 };
 
 export default function ImportPage() {
+  usePageTitle("Data Import");
   const files = useStore((s) => s.files);
   const isProcessing = useStore((s) => s.isProcessing);
   const addFiles = useStore((s) => s.addFiles);
@@ -68,7 +70,7 @@ export default function ImportPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Data import</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Data Import</h2>
           <p className="text-sm text-slate-500">
             Upload weekly exports. Each import is validated, mapped and stored as a permanent record.
           </p>
@@ -161,7 +163,7 @@ export default function ImportPage() {
                 {files
                   .filter((f) => f.status === "imported")
                   .map((file) => (
-                    <tr key={file.id} className="border-b border-slate-100 last:border-0">
+                    <tr key={file.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
                       <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
                         {file.name}
                         <span className="ml-2 text-xs font-normal text-slate-400">

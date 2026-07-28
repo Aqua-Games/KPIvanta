@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { KpiComparisonTable, ComparisonColumn } from "@/components/KpiComparisonTable";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { RetentionCurve } from "@/components/charts/RetentionCurve";
 import { RankedBarChart } from "@/components/charts/RankedBarChart";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { DemoBanner, EmptyState, ExpectedFilesTable } from "@/components/ui/States";
+import { EmptyState, ExpectedFilesTable } from "@/components/ui/States";
 import { distinctValues, groupedKpis } from "@/lib/select";
 import { kpisFor } from "@/lib/kpi";
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
@@ -24,7 +25,8 @@ import {
 import { TOKENS, seriesColor } from "@/components/charts/chartUtils";
 
 export default function BuildComparisonPage() {
-  const { hydrated, isDemo, current, allRecords, granularity } = useData();
+  usePageTitle("Build Comparison");
+  const { hydrated, current, allRecords, granularity } = useData();
   const currency = current[0]?.currency ?? "GBP";
 
   const builds = useMemo(() => distinctValues(current, "build"), [current]);
@@ -102,8 +104,7 @@ export default function BuildComparisonPage() {
   if (builds.length < 2) {
     return (
       <div className="space-y-4">
-        {isDemo && <DemoBanner />}
-        <EmptyState
+          <EmptyState
           title="At least two builds are needed"
           description={`The current selection contains ${builds.length} build${builds.length === 1 ? "" : "s"}. Widen the date range or clear the build filter to compare two versions.`}
         />
@@ -116,11 +117,9 @@ export default function BuildComparisonPage() {
 
   return (
     <div className="space-y-4">
-      {isDemo && <DemoBanner />}
-
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Build comparison (A/B)</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Build Comparison (A/B)</h2>
           <p className="text-sm text-slate-500">
             Improvements and regressions between any two builds, on like-for-like KPIs.
           </p>
@@ -263,7 +262,7 @@ export default function BuildComparisonPage() {
           question="How does every build compare on the selected KPI?"
           records={current}
           dimension="build"
-          metrics={["retentionD1", "retentionD7", "arpdau", "playtimePerUserSeconds", "crashRate"]}
+          metrics={["retentionD1", "retentionD3", "retentionD7", "arpdau", "playtimePerUserSeconds", "crashRate"]}
           currency={currency}
         />
       </div>
@@ -362,7 +361,7 @@ export default function BuildComparisonPage() {
                 const totalDau = buildSummary.reduce((sum, g) => sum + (g.dauTotal ?? 0), 0);
                 const share = totalDau > 0 ? ((group.dauTotal ?? 0) / totalDau) * 100 : null;
                 return (
-                  <tr key={group.key} className="border-b border-slate-100 last:border-0">
+                  <tr key={group.key} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
                     <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
                       {group.key}
                     </th>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { useStore } from "@/store/useStore";
 import { KpiRow } from "@/components/KpiRow";
 import { TrendChart } from "@/components/charts/TrendChart";
@@ -10,7 +11,7 @@ import { RankedBarChart } from "@/components/charts/RankedBarChart";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { DemoBanner, EmptyState, ExpectedFilesTable, NoResultsState } from "@/components/ui/States";
+import { EmptyState, ExpectedFilesTable, NoResultsState } from "@/components/ui/States";
 import { generateAlerts } from "@/lib/alerts";
 import { kpisFor } from "@/lib/kpi";
 import { groupedKpis } from "@/lib/select";
@@ -20,6 +21,7 @@ import { weekLabel } from "@/lib/week";
 import { SOURCE_LABELS, SourceId } from "@/lib/types";
 
 export default function HomePage() {
+  usePageTitle("Dashboard Home");
   const { hydrated, isDemo, current, previous, allRecords, filters, granularity, files } = useData();
   const clearFilters = useStore((s) => s.clearFilters);
   const setFilter = useStore((s) => s.setFilter);
@@ -87,8 +89,6 @@ export default function HomePage() {
 
   return (
     <div className="space-y-4">
-      {isDemo && <DemoBanner />}
-
       <section aria-label="Database summary" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           label="Games tracked"
@@ -107,7 +107,7 @@ export default function HomePage() {
         <SummaryCard
           label="Records stored"
           value={formatNumber(allRecords.length)}
-          hint={isDemo ? "Demo dataset" : `${files.length} file(s) imported`}
+          hint={isDemo ? "Sample dataset — import files to replace" : `${files.length} file(s) imported`}
         />
         <SummaryCard
           label="Latest upload"
@@ -190,6 +190,117 @@ export default function HomePage() {
           )}
         </Card>
       </section>
+
+      <Card
+        title="Games at a glance"
+        question="What is each title, where does it run, and how is it doing?"
+        tooltip="One row per game in the selected period. KPIs are aggregate-correct: retention weighted by cohort, per-user figures divided from totals. Click a game to filter the whole dashboard to it."
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+            <caption className="sr-only">Key information and KPIs for each game</caption>
+            <thead>
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <th scope="col" className="py-2 pr-3 font-medium">Game</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Platform</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Builds</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Countries</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Data sources</th>
+                <th scope="col" className="py-2 pr-3 text-right font-medium">Days of data</th>
+                <th scope="col" className="py-2 pr-3 text-right font-medium">Avg DAU</th>
+                <th scope="col" className="py-2 pr-3 text-right font-medium">D1</th>
+                <th scope="col" className="py-2 pr-3 text-right font-medium">Playtime/user</th>
+                <th scope="col" className="py-2 pr-3 text-right font-medium">Revenue</th>
+                <th scope="col" className="py-2 text-right font-medium">ARPDAU</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gameRanking.map((game) => {
+                const platforms = Array.from(
+                  new Set(game.records.map((r) => r.platform).filter(Boolean))
+                );
+                const builds = Array.from(
+                  new Set(game.records.map((r) => r.build).filter(Boolean))
+                ).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+                const countries = Array.from(
+                  new Set(game.records.map((r) => r.country).filter(Boolean))
+                );
+                const gameSources = Array.from(
+                  new Set(game.records.flatMap((r) => r.sources ?? [r.source]))
+                );
+                return (
+                  <tr
+                    key={game.key}
+                    className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70"
+                  >
+                    <th scope="row" className="py-2 pr-3 text-left">
+                      <button
+                        type="button"
+                        onClick={() => setFilter("games", [game.key])}
+                        className="font-medium text-blue-700 hover:underline"
+                        title={`Filter the dashboard to ${game.key}`}
+                      >
+                        {game.key}
+                      </button>
+                    </th>
+                    <td className="py-2 pr-3 text-slate-600">
+                      {platforms.join(", ") || "Not reported"}
+                    </td>
+                    <td className="py-2 pr-3 text-slate-600">
+                      {builds.length > 0 ? (
+                        <span title={builds.join(", ")}>
+                          {builds.length} ({builds.slice(-2).join(", ")}
+                          {builds.length > 2 ? " latest" : ""})
+                        </span>
+                      ) : (
+                        "Not reported"
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-slate-600">
+                      {countries.length > 0 ? countries.join(", ") : "All countries"}
+                    </td>
+                    <td className="py-2 pr-3 text-slate-600">
+                      {gameSources.map((s) => SOURCE_LABELS[s as SourceId] ?? s).join(", ")}
+                    </td>
+                    <td className="tabular py-2 pr-3 text-right text-slate-600">
+                      {formatNumber(game.dayCount)}
+                    </td>
+                    <td className="tabular py-2 pr-3 text-right text-slate-900">
+                      {game.dau === null ? "N/A" : formatNumber(Math.round(game.dau))}
+                    </td>
+                    <td className="tabular py-2 pr-3 text-right text-slate-900">
+                      {game.retentionD1 === null ? "N/A" : `${game.retentionD1.toFixed(1)}%`}
+                    </td>
+                    <td className="tabular py-2 pr-3 text-right text-slate-900">
+                      {game.playtimePerUserSeconds === null
+                        ? "N/A"
+                        : `${Math.round(game.playtimePerUserSeconds / 60)}m`}
+                    </td>
+                    <td className="tabular py-2 pr-3 text-right text-slate-900">
+                      {game.totalRevenue === null
+                        ? "N/A"
+                        : new Intl.NumberFormat("en-GB", {
+                            style: "currency",
+                            currency,
+                            maximumFractionDigits: 0,
+                          }).format(game.totalRevenue)}
+                    </td>
+                    <td className="tabular py-2 text-right text-slate-900">
+                      {game.arpdau === null
+                        ? "N/A"
+                        : new Intl.NumberFormat("en-GB", {
+                            style: "currency",
+                            currency,
+                            maximumFractionDigits: 4,
+                          }).format(game.arpdau)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <h2 className="pt-1 text-sm font-semibold text-slate-900">Headline KPIs</h2>
       <KpiRow
@@ -274,7 +385,7 @@ export default function HomePage() {
                   .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
                   .slice(0, 6)
                   .map((file) => (
-                    <tr key={file.id} className="border-b border-slate-100 last:border-0">
+                    <tr key={file.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
                       <th scope="row" className="py-2 pr-3 text-left font-medium text-slate-800">
                         {file.name}
                       </th>
@@ -314,7 +425,7 @@ export default function HomePage() {
 
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="panel p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-1 truncate text-xl font-semibold text-slate-900" title={value}>
         {value}

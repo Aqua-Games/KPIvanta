@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { useStore } from "@/store/useStore";
 import { KpiComparisonTable, ComparisonColumn } from "@/components/KpiComparisonTable";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { RetentionCurve } from "@/components/charts/RetentionCurve";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { Card } from "@/components/ui/Card";
-import { DemoBanner, EmptyState, ExpectedFilesTable } from "@/components/ui/States";
+import { EmptyState, ExpectedFilesTable } from "@/components/ui/States";
 import { applyFilters, distinctValues } from "@/lib/select";
 import { kpisFor } from "@/lib/kpi";
 import { generateAlerts } from "@/lib/alerts";
@@ -16,7 +17,8 @@ import { previousWeekKey, weekLabel, weekLabelWithRange, weekRange } from "@/lib
 import { formatDate } from "@/lib/format";
 
 export default function HistoricalPage() {
-  const { hydrated, isDemo, allRecords, filters, granularity } = useData();
+  usePageTitle("Historical Comparison");
+  const { hydrated, allRecords, filters, granularity } = useData();
   const setGranularity = useStore((s) => s.setGranularity);
 
   const weeks = useMemo(() => distinctValues(allRecords, "week").sort(), [allRecords]);
@@ -98,11 +100,9 @@ export default function HistoricalPage() {
 
   return (
     <div className="space-y-4">
-      {isDemo && <DemoBanner />}
-
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Historical comparison</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Historical Comparison</h2>
           <p className="text-sm text-slate-500">
             Compare any two weeks and see the full KPI difference between them.
           </p>
@@ -213,7 +213,7 @@ export default function HistoricalPage() {
         />
         <TrendChart
           id="hist-revenue"
-          title="Revenue and ARPDAU trend"
+          title="Revenue trend"
           question="Is revenue growing faster than the player base?"
           records={spanRecords}
           metrics={["totalRevenue"]}

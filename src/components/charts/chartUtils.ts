@@ -2,15 +2,22 @@ import { KpiId, KPI_BY_ID } from "@/lib/kpi";
 import { formatCompactNumber } from "@/lib/format";
 import { currencySymbol } from "@/lib/format";
 
-/** One palette used everywhere so a build keeps its colour across every chart. */
+/**
+ * One palette used everywhere so a build keeps its colour across every chart.
+ * Hue order is CVD-validated: every adjacent pair clears ΔE ≥ 8 under
+ * protan/deutan simulation and ≥ 15 for normal vision (six-checks validator).
+ * The lighter hues (aqua, yellow, magenta) rely on the relief rule — legend
+ * chips and tooltips always carry a text label beside the swatch.
+ */
 export const SERIES_PALETTE = [
-  "#2563eb",
-  "#7c3aed",
-  "#059669",
-  "#d97706",
-  "#0891b2",
-  "#db2777",
-  "#475569",
+  "#2a78d6", // blue
+  "#eb6834", // orange
+  "#1baf7a", // aqua
+  "#eda100", // yellow
+  "#e87ba4", // magenta
+  "#008300", // green
+  "#4a3aa7", // violet
+  "#e34948", // red
 ];
 
 export const TOKENS = {
@@ -20,7 +27,7 @@ export const TOKENS = {
   warning: "#d97706",
   version: "#7c3aed",
   muted: "#94a3b8",
-  grid: "#eef2f7",
+  grid: "#f1f5f9",
 };
 
 export function seriesColor(index: number): string {

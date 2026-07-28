@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useData } from "@/store/useData";
+import { usePageTitle } from "@/components/usePageTitle";
 import { useStore } from "@/store/useStore";
 import { KpiRow } from "@/components/KpiRow";
 import { TrendChart } from "@/components/charts/TrendChart";
@@ -10,7 +11,7 @@ import { RankedBarChart } from "@/components/charts/RankedBarChart";
 import { KpiComparisonTable, ComparisonColumn } from "@/components/KpiComparisonTable";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { Card } from "@/components/ui/Card";
-import { DemoBanner, EmptyState, ExpectedFilesTable } from "@/components/ui/States";
+import { EmptyState, ExpectedFilesTable } from "@/components/ui/States";
 import { applyFilters, distinctValues } from "@/lib/select";
 import { kpisFor } from "@/lib/kpi";
 import { generateAlerts } from "@/lib/alerts";
@@ -21,7 +22,8 @@ import { SOURCE_LABELS, SourceId } from "@/lib/types";
 import { exportRecordsCsv } from "@/lib/exportCsv";
 
 export default function WeeklyReportPage() {
-  const { hydrated, isDemo, allRecords, filters } = useData();
+  usePageTitle("Weekly Report");
+  const { hydrated, allRecords, filters } = useData();
   const granularity = useStore((s) => s.granularity);
   const setGranularity = useStore((s) => s.setGranularity);
 
@@ -114,11 +116,9 @@ export default function WeeklyReportPage() {
 
   return (
     <div className="space-y-4">
-      {isDemo && <DemoBanner />}
-
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Weekly performance report</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Weekly Performance Report</h2>
           <p className="text-sm text-slate-500">
             {range ? `${formatDate(range.start)} – ${formatDate(range.end)}` : "Select a week"} ·
             compared with {weekLabel(comparisonWeek)}
@@ -240,7 +240,11 @@ export default function WeeklyReportPage() {
               "dau",
               "playtimePerUserSeconds",
               "retentionD1",
+              "retentionD2",
               "retentionD3",
+              "retentionD4",
+              "retentionD5",
+              "retentionD6",
               "retentionD7",
               "impdau",
               "arpdau",
@@ -288,8 +292,8 @@ export default function WeeklyReportPage() {
             />
             <TrendChart
               id="weekly-revenue"
-              title="Revenue and IMPDAU trend"
-              question="Is ad supply keeping up with revenue?"
+              title="Revenue trend"
+              question="Is revenue tracking the player base week over week?"
               records={current}
               compareRecords={previous}
               metrics={["totalRevenue"]}
