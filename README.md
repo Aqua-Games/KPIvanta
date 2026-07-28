@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KPIvantra
 
-## Getting Started
+KPI analytics dashboard for mobile games — weekly reports, build (A/B) comparison, historical trends, monetization and data-quality checks. Built with Next.js, TypeScript, Tailwind CSS and Recharts. Developed by Aqua Games.
 
-First, run the development server:
+## Requirements
+
+- Node.js 18.18 or newer (20+ recommended)
+- npm (ships with Node)
+
+## Run it
 
 ```bash
+git clone <repo-url>
+cd kpivantra
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open **http://localhost:3000**. The dashboard starts with generated sample figures so every page is explorable immediately.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Production build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Importing your data
 
-To learn more about Next.js, take a look at the following resources:
+1. Go to **Data Import** and drag in your CSV exports (GameAnalytics, AdMob, or generic). Multiple files at once is fine — encoding, delimiter, header row and report type are detected automatically.
+2. Set the one or two things a file can't tell us: the **game name** (when the file has no game column) and the **reporting period** (for dateless exports such as the AdMob weekly report).
+3. Review the suggested column mapping, then **Import into database**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+No export handy? Click **"Load the bundled sample files"** on the Data Import page.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Everything is stored locally in your browser (localStorage) — there is no backend and no data leaves your machine. **Clear database** on the Data Import page resets it.
 
-## Deploy on Vercel
+## Useful commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Development server on port 3000 |
+| `npm run build` | Production build |
+| `npm start` | Serve the production build |
+| `npx tsc --noEmit` | Type check |
+| `npx eslint src` | Lint |
