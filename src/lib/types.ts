@@ -91,6 +91,9 @@ export interface KpiRecordMetrics {
   retentionD30?: number;
   cohortSize?: number;
 
+  // Acquisition
+  spend?: number;
+
   // Monetization
   adRevenue?: number;
   iapRevenue?: number;

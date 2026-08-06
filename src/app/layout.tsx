@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "KPIvantra",
-  description: "Upload your game analytics CSVs and get an instant KPI report",
+  description: "KPI reporting, weekly and build comparison for mobile games",
 };
 
 export default function RootLayout({
@@ -35,7 +36,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-[1200px] items-center gap-3 px-4 py-3 sm:px-6">
+          <Link href="/" className="mx-auto flex max-w-[1200px] items-center gap-3 px-4 py-3 sm:px-6">
             <span
               aria-hidden="true"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-sm"
@@ -45,12 +46,12 @@ export default function RootLayout({
               </svg>
             </span>
             <div>
-              <h1 className="text-base font-semibold tracking-tight text-slate-900">KPIvantra</h1>
+              <span className="block text-base font-semibold tracking-tight text-slate-900">KPIvantra</span>
               <p className="text-xs text-slate-500">
-                Upload your analytics CSVs, get an instant KPI report
+                KPI reporting, weekly and build comparison for mobile games
               </p>
             </div>
-          </div>
+          </Link>
         </header>
         <main id="main-content" className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-6 sm:px-6">
           {children}

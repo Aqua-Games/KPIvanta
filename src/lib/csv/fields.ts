@@ -28,6 +28,9 @@ export const CANONICAL_FIELDS: CanonicalFieldDefinition[] = [
   { id: "retentionD30", label: "D30 retention", category: "retention", dataType: "rate", description: "Day-30 retention rate", isRate: true },
   { id: "cohortSize", label: "Cohort size", category: "retention", dataType: "number", description: "Users eligible for the retention cohort — used to weight the average" },
 
+  // Acquisition
+  { id: "spend", label: "Spend", category: "monetization", dataType: "currency", description: "User-acquisition cost" },
+
   // Monetization
   { id: "adRevenue", label: "Ad revenue", category: "monetization", dataType: "currency", description: "Advertising earnings" },
   { id: "iapRevenue", label: "IAP revenue", category: "monetization", dataType: "currency", description: "In-app purchase revenue" },
@@ -115,6 +118,15 @@ export const EXACT_HEADERS: Record<string, string> = {
   "d7 retention": "retentionD7",
   "d30 retention": "retentionD30",
 
+  spend: "spend",
+  cost: "spend",
+  "ad spend": "spend",
+  "amount spent": "spend",
+  "amount spent usd": "spend",
+  "ua spend": "spend",
+  "marketing spend": "spend",
+  "total spend": "spend",
+
   "estimated earnings": "adRevenue",
   "estimated earnings gbp": "adRevenue",
   "estimated earnings usd": "adRevenue",
@@ -192,6 +204,8 @@ export const FUZZY_RULES: { pattern: RegExp; field: string }[] = [
   { pattern: /playtime per user/, field: "playtimeSecondsPerUser" },
   { pattern: /^playtime/, field: "playtimeSecondsTotal" },
   { pattern: /^retention (\d+)$/, field: "retention" },
+  { pattern: /\bspend\b/, field: "spend" },
+  { pattern: /\bcost\b/, field: "spend" },
   { pattern: /estimated earnings/, field: "adRevenue" },
   { pattern: /\bearnings\b/, field: "adRevenue" },
   { pattern: /\bimpressions\b/, field: "adImpressions" },

@@ -29,6 +29,7 @@ export function safeDiv(
 
 /** Metrics that can be summed across rows. Rates are deliberately excluded. */
 export const ADDITIVE_FIELDS = [
+  "spend",
   "dau",
   "activeUsers",
   "newUsers",
@@ -159,9 +160,13 @@ export interface KpiValues {
   retentionD5: number | null;
   retentionD6: number | null;
   retentionD7: number | null;
+  spend: number | null;
   adRevenue: number | null;
   iapRevenue: number | null;
   totalRevenue: number | null;
+  roas: number | null;
+  profit: number | null;
+  cpi: number | null;
   arpdau: number | null;
   arpdauAds: number | null;
   arpdauIap: number | null;
@@ -226,9 +231,14 @@ export function computeKpis(totals: Totals): KpiValues {
     retentionD5: retentionValue(totals, "retentionD5"),
     retentionD6: retentionValue(totals, "retentionD6"),
     retentionD7: retentionValue(totals, "retentionD7"),
+    spend: totals.spend ?? null,
     adRevenue: adRevenue ?? null,
     iapRevenue: iapRevenue ?? null,
     totalRevenue,
+    roas: totalRevenue === null ? null : safeDiv(totalRevenue, totals.spend),
+    profit:
+      totalRevenue === null || totals.spend === undefined ? null : totalRevenue - totals.spend,
+    cpi: safeDiv(totals.spend, totals.newUsers),
     arpdau: totalRevenue === null ? null : safeDiv(totalRevenue, totals.dau),
     arpdauAds: safeDiv(totals.adRevenue, totals.dau),
     arpdauIap: safeDiv(totals.iapRevenue, totals.dau),
@@ -410,6 +420,40 @@ export const KPI_DEFINITIONS: KpiDefinition[] = [
     group: "monetization",
     formula: "Ad revenue ÷ ad impressions × 1,000",
     direction: "higher_better",
+    format: (v, c) => formatCurrencyPrecise(v, c, 2),
+  },
+  {
+    id: "spend",
+    label: "Spend",
+    group: "monetization",
+    formula: "Sum of user-acquisition cost across the selected period",
+    direction: "lower_better",
+    format: (v, c) => formatCurrencyPrecise(v, c, 2),
+  },
+  {
+    id: "roas",
+    label: "ROAS",
+    group: "monetization",
+    formula: "Total revenue ÷ spend. Above 1.00x means the period earned back more than it cost",
+    direction: "higher_better",
+    format: (v) => (v === null || v === undefined || Number.isNaN(v) ? "N/A" : `${v.toFixed(2)}x`),
+    scored: true,
+    scoreWeight: 1.5,
+  },
+  {
+    id: "profit",
+    label: "Profit",
+    group: "monetization",
+    formula: "Total revenue − spend",
+    direction: "higher_better",
+    format: (v, c) => formatCurrencyPrecise(v, c, 2),
+  },
+  {
+    id: "cpi",
+    label: "CPI",
+    group: "monetization",
+    formula: "Spend ÷ new users",
+    direction: "lower_better",
     format: (v, c) => formatCurrencyPrecise(v, c, 2),
   },
   {

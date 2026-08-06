@@ -1,0 +1,337 @@
+"use client";
+
+import { create } from "zustand";
+import { v4 as uuid } from "uuid";
+import { KpiRecord, UploadedFile, ValidationIssue } from "@/lib/types";
+import { decodeBuffer, hashContent } from "@/lib/csv/decode";
+import { buildColumnPlan, detectReport, parseTable } from "@/lib/csv/parse";
+import { transform } from "@/lib/csv/transform";
+import { deduplicateAudience, mergeRecords } from "@/lib/merge";
+import { validateDatabase } from "@/lib/validation";
+import { dataDateRange } from "@/lib/select";
+import { isoWeekKey } from "@/lib/week";
+import { api, Project, ProjectData } from "@/lib/api";
+
+export const SAMPLE_FILES = [
+  "dau-overall.csv",
+  "overall-retention-d1-d7.csv",
+  "playtime-in-seconds-per-user-overall.csv",
+  "admob-report.csv",
+];
+
+type StoredFile = ProjectData["files"][number];
+
+interface WorkspaceState {
+  projectId: string | null;
+  project: Project | null;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+
+  /** Committed, persisted state. */
+  records: KpiRecord[];
+  files: StoredFile[];
+  issues: ValidationIssue[];
+  weeklySpend: Record<string, number>;
+
+  /** Files staged in the browser, not yet turned into records. */
+  staged: UploadedFile[];
+  isProcessing: boolean;
+
+  load: (projectId: string) => Promise<void>;
+  addFiles: (files: File[]) => Promise<void>;
+  loadSampleFiles: () => Promise<void>;
+  removeStaged: (id: string) => void;
+  processStaged: () => Promise<void>;
+  setWeeklySpend: (week: string, value: number | null) => Promise<void>;
+  clearData: () => Promise<void>;
+}
+
+function lastSevenDays(): { start: string; end: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 6);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+/** Games named inside staged files, so a multi-app export can be narrowed down. */
+export function stagedGames(files: UploadedFile[]): string[] {
+  const set = new Set<string>();
+  for (const file of files) {
+    const { parsedTable: table, plan } = file;
+    if (!table || !plan) continue;
+    const column = plan.findIndex((p) => p.targetField === "game" && !p.ignored);
+    if (column === -1) continue;
+    table.rows.forEach((row) => {
+      const value = (row[column] ?? "").trim();
+      if (value) set.add(value);
+    });
+  }
+  return Array.from(set).sort();
+}
+
+/**
+ * Manual weekly spend becomes per-day spend records, so it aggregates correctly
+ * under any date range instead of being a figure bolted on at the end.
+ */
+export function applyWeeklySpend(
+  records: KpiRecord[],
+  weeklySpend: Record<string, number>
+): KpiRecord[] {
+  const entries = Object.entries(weeklySpend).filter(([, value]) => value > 0);
+  if (entries.length === 0) return records;
+
+  const daysPerWeek = new Map<string, string[]>();
+  for (const record of records) {
+    if (!record.date) continue;
+    const week = record.week ?? isoWeekKey(record.date);
+    const days = daysPerWeek.get(week) ?? [];
+    if (!days.includes(record.date)) days.push(record.date);
+    daysPerWeek.set(week, days);
+  }
+
+  const spendRecords: KpiRecord[] = [];
+  for (const [week, amount] of entries) {
+    const days = daysPerWeek.get(week);
+    if (!days || days.length === 0) continue;
+    const perDay = amount / days.length;
+    for (const date of days) {
+      spendRecords.push({
+        id: `spend-${week}-${date}`,
+        uploadId: "manual-spend",
+        source: "generic",
+        date,
+        week,
+        spend: perDay,
+      });
+    }
+  }
+  return [...records, ...spendRecords];
+}
+
+export const useWorkspace = create<WorkspaceState>()((set, get) => ({
+  projectId: null,
+  project: null,
+  loading: false,
+  saving: false,
+  error: null,
+  records: [],
+  files: [],
+  issues: [],
+  weeklySpend: {},
+  staged: [],
+  isProcessing: false,
+
+  load: async (projectId) => {
+    set({ loading: true, error: null, projectId });
+    try {
+      const [project, data] = await Promise.all([
+        api.getProject(projectId),
+        api.getProjectData(projectId),
+      ]);
+      set({
+        project,
+        records: data.records,
+        files: data.files,
+        issues: data.issues,
+        weeklySpend: data.weeklySpend ?? {},
+        staged: [],
+        loading: false,
+      });
+    } catch (e) {
+      set({ loading: false, error: e instanceof Error ? e.message : "Could not load the project." });
+    }
+  },
+
+  addFiles: async (fileList) => {
+    set({ isProcessing: true });
+    const staged: UploadedFile[] = [];
+    const known = new Set(get().files.map((f) => f.id));
+
+    for (const file of fileList) {
+      const id = uuid();
+      try {
+        const buffer = await file.arrayBuffer();
+        const { text, encoding } = decodeBuffer(buffer);
+        const hash = hashContent(text);
+        // A file already imported into this project, or already staged, is skipped.
+        if (known.has(hash) || get().staged.some((f) => f.contentHash === hash)) continue;
+
+        const table = parseTable(text, encoding);
+        const detection = detectReport(table);
+        staged.push({
+          id,
+          name: file.name,
+          size: file.size,
+          contentHash: hash,
+          source: detection.source,
+          reportKind: detection.reportKind,
+          status: "needs_review",
+          currency: detection.currency,
+          period: table.detectedPeriod,
+          recordCount: table.rows.length,
+          importedRecordCount: 0,
+          skippedRecordCount: 0,
+          parsedTable: table,
+          plan: buildColumnPlan(table, detection.reportKind),
+          issues: [],
+          uploadedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        staged.push({
+          id,
+          name: file.name,
+          size: file.size,
+          contentHash: "",
+          source: "generic",
+          reportKind: "unknown",
+          status: "error",
+          recordCount: 0,
+          importedRecordCount: 0,
+          skippedRecordCount: 0,
+          issues: [],
+          uploadedAt: new Date().toISOString(),
+          error: error instanceof Error ? error.message : "The file could not be read.",
+        });
+      }
+    }
+
+    set((state) => ({ staged: [...state.staged, ...staged], isProcessing: false }));
+  },
+
+  loadSampleFiles: async () => {
+    set({ isProcessing: true });
+    try {
+      const fetched = await Promise.all(
+        SAMPLE_FILES.map(async (name) => {
+          const response = await fetch(`/samples/${name}`);
+          if (!response.ok) throw new Error(`Could not load the sample file ${name}`);
+          return new File([await response.blob()], name, { type: "text/csv" });
+        })
+      );
+      set({ isProcessing: false });
+      await get().addFiles(fetched);
+    } catch {
+      set({ isProcessing: false });
+    }
+  },
+
+  removeStaged: (id) => set((state) => ({ staged: state.staged.filter((f) => f.id !== id) })),
+
+  processStaged: async () => {
+    const { staged, records, files, issues, projectId, project } = get();
+    if (!projectId) return;
+    set({ saving: true });
+
+    let fresh: KpiRecord[] = [];
+    const newIssues: ValidationIssue[] = [];
+    const usable = staged.filter((f) => f.parsedTable && f.plan && f.status !== "error");
+
+    const run = (file: UploadedFile, period?: { start: string; end: string }) => {
+      const result = transform(file.parsedTable!, file.plan!, {
+        uploadId: file.contentHash || file.id,
+        fileName: file.name,
+        source: file.source,
+        reportKind: file.reportKind,
+        game: project?.appName ?? project?.name,
+        currency: file.currency ?? project?.currency,
+        period,
+      });
+      fresh = fresh.concat(result.records);
+      newIssues.push(...result.issues);
+    };
+
+    // Dated files first, so a dateless export can inherit their span.
+    const hasOwnDates = (file: UploadedFile) =>
+      Boolean(file.period) || Boolean(file.plan?.some((p) => p.targetField === "date" && !p.ignored));
+
+    usable.filter(hasOwnDates).forEach((file) => run(file, file.period));
+    const inferred = dataDateRange(fresh) ?? dataDateRange(records);
+
+    usable
+      .filter((file) => !hasOwnDates(file))
+      .forEach((file) => {
+        const period = inferred ?? lastSevenDays();
+        run(file, period);
+        newIssues.push({
+          id: `auto-period-${file.id}`,
+          severity: "info",
+          category: "Reporting period inferred",
+          description: `${file.name} has no date column, so its figures were assigned to ${period.start} – ${period.end}.`,
+          resolution: "Export with a date column if a different period is intended.",
+          sourceFile: file.name,
+        });
+      });
+
+    // A multi-app export (AdMob) carries other games — keep only this project's.
+    const names = new Set(
+      [project?.appName, project?.name].filter(Boolean).map((n) => n!.toLowerCase())
+    );
+    const scoped = fresh.filter((r) => !r.game || names.has(r.game.toLowerCase()));
+
+    const combined = [...records, ...scoped];
+    const deduped = deduplicateAudience(combined);
+    const merged = mergeRecords(deduped.records);
+
+    const storedFiles: StoredFile[] = [
+      ...files,
+      ...usable.map((f) => ({
+        id: f.contentHash || f.id,
+        name: f.name,
+        size: f.size,
+        source: f.source,
+        reportKind: f.reportKind,
+        uploadedAt: f.uploadedAt,
+        recordCount: f.recordCount,
+      })),
+    ];
+
+    const allIssues = [
+      ...issues.filter((i) => i.category === "Reporting period inferred"),
+      ...newIssues,
+      ...deduped.conflicts,
+      ...merged.conflicts,
+      ...validateDatabase(merged.records, []),
+    ];
+
+    try {
+      await api.saveProjectData(projectId, {
+        records: merged.records,
+        files: storedFiles,
+        issues: allIssues,
+        weeklySpend: get().weeklySpend,
+      });
+      set({
+        records: merged.records,
+        files: storedFiles,
+        issues: allIssues,
+        staged: [],
+        saving: false,
+      });
+    } catch (e) {
+      set({ saving: false, error: e instanceof Error ? e.message : "Could not save the project." });
+    }
+  },
+
+  setWeeklySpend: async (week, value) => {
+    const { projectId, records, files, issues, weeklySpend } = get();
+    if (!projectId) return;
+    const next = { ...weeklySpend };
+    if (value === null || Number.isNaN(value)) delete next[week];
+    else next[week] = value;
+    set({ weeklySpend: next, saving: true });
+    try {
+      await api.saveProjectData(projectId, { records, files, issues, weeklySpend: next });
+    } finally {
+      set({ saving: false });
+    }
+  },
+
+  clearData: async () => {
+    const { projectId } = get();
+    if (!projectId) return;
+    set({ saving: true });
+    await api.saveProjectData(projectId, { records: [], files: [], issues: [], weeklySpend: {} });
+    set({ records: [], files: [], issues: [], weeklySpend: {}, staged: [], saving: false });
+  },
+}));
