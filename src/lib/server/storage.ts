@@ -29,6 +29,8 @@ export interface Project {
   platform: ProjectPlatform;
   /** Which app name inside the uploaded files this project tracks. */
   appName?: string;
+  /** GA4 / Firebase Analytics property this project pulls from. */
+  ga4PropertyId?: string;
   currency: string;
   createdAt: string;
   updatedAt: string;

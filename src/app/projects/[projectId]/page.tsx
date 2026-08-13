@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ErrorState, ExpectedFilesTable, LoadingState } from "@/components/ui/States";
 import { SixBoxes } from "@/components/SixBoxes";
+import { FirebaseSync } from "@/components/FirebaseSync";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { RetentionCurve } from "@/components/charts/RetentionCurve";
 import { RankedBarChart } from "@/components/charts/RankedBarChart";
@@ -130,6 +131,14 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
           )}
         </div>
       </div>
+
+      {uploadOpen && (
+        <FirebaseSync
+          projectId={projectId}
+          initialPropertyId={project.ga4PropertyId}
+          onSynced={() => load(projectId)}
+        />
+      )}
 
       {uploadOpen && (
         <UploadPanel
