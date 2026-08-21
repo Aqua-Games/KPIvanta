@@ -22,6 +22,12 @@ import { rangeLabel, weekLabel, weekRange } from "@/lib/week";
 import { exportRecordsCsv } from "@/lib/exportCsv";
 import { REPORT_KIND_LABELS, SOURCE_LABELS, SourceId } from "@/lib/types";
 
+/**
+ * The Firebase Analytics sync is finished but parked until the GA4 service
+ * account is set up. Flip this to true to bring the panel back.
+ */
+const GA4_SYNC_ENABLED = false;
+
 type Tab = "overview" | "weekly" | "builds";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -132,7 +138,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
         </div>
       </div>
 
-      {uploadOpen && (
+      {GA4_SYNC_ENABLED && uploadOpen && (
         <FirebaseSync
           projectId={projectId}
           initialPropertyId={project.ga4PropertyId}

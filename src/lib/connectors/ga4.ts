@@ -1,4 +1,3 @@
-import { GoogleAuth } from "google-auth-library";
 import { KpiRecord } from "../types";
 import { isoWeekKey } from "../week";
 
@@ -17,11 +16,43 @@ const SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
 export class Ga4ConfigError extends Error {}
 
 /**
+ * Only the two calls this connector makes are typed, so the optional dependency
+ * is not referenced at compile time and a checkout without it still builds.
+ */
+interface AuthClient {
+  getClient(): Promise<{ getAccessToken(): Promise<{ token?: string | null }> }>;
+}
+type AuthConstructor = new (options: {
+  credentials?: Record<string, unknown>;
+  scopes: string[];
+}) => AuthClient;
+
+/**
+ * Resolved through a variable so the bundler cannot follow it. The package is
+ * optional: without it the sync reports that setup is needed, and the rest of
+ * the app builds and runs untouched.
+ */
+async function loadGoogleAuth(): Promise<AuthConstructor> {
+  const specifier = "google-auth-library";
+  try {
+    const library = (await import(/* webpackIgnore: true */ specifier)) as {
+      GoogleAuth: AuthConstructor;
+    };
+    return library.GoogleAuth;
+  } catch {
+    throw new Ga4ConfigError(
+      "The google-auth-library package is not installed. Run `npm install` in this checkout to enable the Firebase Analytics sync."
+    );
+  }
+}
+
+/**
  * Credentials come from the environment, never from the browser:
  * `GA4_SERVICE_ACCOUNT_JSON` (the key file's contents) or
  * `GOOGLE_APPLICATION_CREDENTIALS` (a path to it).
  */
-function authClient(): GoogleAuth {
+async function authClient(): Promise<AuthClient> {
+  const GoogleAuthClass = await loadGoogleAuth();
   const inline = process.env.GA4_SERVICE_ACCOUNT_JSON;
   if (inline) {
     let credentials;
@@ -30,10 +61,10 @@ function authClient(): GoogleAuth {
     } catch {
       throw new Ga4ConfigError("GA4_SERVICE_ACCOUNT_JSON is not valid JSON.");
     }
-    return new GoogleAuth({ credentials, scopes: [SCOPE] });
+    return new GoogleAuthClass({ credentials, scopes: [SCOPE] });
   }
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    return new GoogleAuth({ scopes: [SCOPE] });
+    return new GoogleAuthClass({ scopes: [SCOPE] });
   }
   throw new Ga4ConfigError(
     "No Google credentials found. Set GA4_SERVICE_ACCOUNT_JSON (the service-account key contents) or GOOGLE_APPLICATION_CREDENTIALS (a path to the key file) in .env.local."
@@ -53,7 +84,7 @@ interface ReportResponse {
 }
 
 async function runReport(propertyId: string, body: unknown): Promise<ReportResponse> {
-  const auth = authClient();
+  const auth = await authClient();
   const client = await auth.getClient();
   const token = await client.getAccessToken();
   const id = propertyId.replace(/^properties\//, "");
