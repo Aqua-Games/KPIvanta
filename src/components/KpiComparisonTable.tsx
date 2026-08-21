@@ -50,6 +50,7 @@ export function KpiComparisonTable({
   title = "KPI comparison",
   question,
   groups,
+  hiddenIds,
 }: {
   columns: ComparisonColumn[];
   currency: string;
@@ -58,12 +59,16 @@ export function KpiComparisonTable({
   title?: string;
   question?: string;
   groups?: KpiId[];
+  /** KPIs to leave out even when they carry data. */
+  hiddenIds?: KpiId[];
 }) {
   const baseline = columns[0];
   const target = columns[columns.length - 1];
   const rows = KPI_DEFINITIONS.filter((definition) =>
     groups ? groups.includes(definition.id) : true
-  ).filter((definition) =>
+  )
+    .filter((definition) => !hiddenIds?.includes(definition.id))
+    .filter((definition) =>
     // Hide a KPI that no column reports at all.
     columns.some((column) => column.values[definition.id] !== null)
   );

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useWorkspace, applyWeeklySpend } from "@/store/useWorkspace";
+import { useWorkspace, applyWeeklySpend, stagedDatedWeeks, datelessStaged } from "@/store/useWorkspace";
 import { Dropzone } from "@/components/import/Dropzone";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -70,6 +70,7 @@ function ProjectPage() {
     addFiles,
     loadSampleFiles,
     removeStaged,
+    setStagedPeriod,
     processStaged,
     setWeeklySpend,
     setProjectWeekStart,
@@ -168,11 +169,13 @@ function ProjectPage() {
         <UploadPanel
           hasData={hasData}
           staged={staged}
+          existingRecords={rawRecords}
           isProcessing={isProcessing}
           saving={saving}
           onFiles={addFiles}
           onSamples={loadSampleFiles}
           onRemove={removeStaged}
+          onPeriod={setStagedPeriod}
           onProcess={async () => {
             await processStaged();
             setShowUpload(false);
@@ -238,23 +241,35 @@ function ProjectPage() {
 function UploadPanel({
   hasData,
   staged,
+  existingRecords,
   isProcessing,
   saving,
   onFiles,
   onSamples,
   onRemove,
+  onPeriod,
   onProcess,
 }: {
   hasData: boolean;
   staged: ReturnType<typeof useWorkspace.getState>["staged"];
+  existingRecords: Parameters<typeof stagedDatedWeeks>[1];
   isProcessing: boolean;
   saving: boolean;
   onFiles: (files: File[]) => void;
   onSamples: () => void;
   onRemove: (id: string) => void;
+  onPeriod: (id: string, period: { start: string; end: string } | undefined) => void;
   onProcess: () => void;
 }) {
   const usable = staged.filter((f) => f.status !== "error");
+  const weekOptions = useMemo(
+    () => stagedDatedWeeks(staged, existingRecords),
+    [staged, existingRecords]
+  );
+  const dateless = datelessStaged(staged);
+  // One dateless sheet can safely inherit the whole span. Two or more sharing
+  // it would double count, so each must be pinned to a week first.
+  const needsPinning = dateless.length >= 2 && dateless.some((f) => !f.period);
 
   return (
     <Card
@@ -302,10 +317,35 @@ function UploadPanel({
                 </div>
                 {file.status === "error" ? (
                   <Badge tone="negative">Unreadable</Badge>
-                ) : file.period ? (
-                  <Badge tone="neutral">{rangeLabel(file.period)}</Badge>
                 ) : file.plan?.some((p) => p.targetField === "date" && !p.ignored) ? (
                   <Badge tone="positive">Ready</Badge>
+                ) : weekOptions.length > 0 ? (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                    Covers
+                    <select
+                      value={
+                        weekOptions.find((w) => {
+                          const r = weekRange(w);
+                          return r && file.period && r.start === file.period.start && r.end === file.period.end;
+                        }) ?? ""
+                      }
+                      onChange={(e) =>
+                        onPeriod(file.id, e.target.value ? (weekRange(e.target.value) ?? undefined) : undefined)
+                      }
+                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                    >
+                      <option value="">
+                        {dateless.length >= 2 ? "Pick a week…" : "Whole uploaded period"}
+                      </option>
+                      {weekOptions.map((w) => (
+                        <option key={w} value={w}>
+                          {weekLabelWithRange(w)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : file.period ? (
+                  <Badge tone="neutral">{rangeLabel(file.period)}</Badge>
                 ) : (
                   <Badge tone="neutral">Dates taken from the other sheets</Badge>
                 )}
@@ -320,10 +360,20 @@ function UploadPanel({
             ))}
           </ul>
 
+          {needsPinning && (
+            <p
+              role="note"
+              className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-600/20"
+            >
+              {dateless.length} sheets have no date column. Pick which week each one covers —
+              spreading them all across the same days would count the same revenue twice.
+            </p>
+          )}
+
           <button
             type="button"
             onClick={onProcess}
-            disabled={usable.length === 0 || saving}
+            disabled={usable.length === 0 || saving || needsPinning}
             className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {saving ? "Saving…" : hasData ? "Add to project" : "Generate report"}
@@ -528,8 +578,13 @@ function WeeklyTab({
   const [pickedA, setPickedA] = useState<string | null>(null);
   const [pickedB, setPickedB] = useState<string | null>(null);
   const weekB = pickedB && weeks.includes(pickedB) ? pickedB : (weeks[weeks.length - 1] ?? "");
+  // Never default both sides to the same week — a stale selection from before
+  // an upload used to leave "Week 32 vs Week 32" until a refresh.
+  const weekAlternatives = weeks.filter((w) => w !== weekB);
   const weekA =
-    pickedA && weeks.includes(pickedA) ? pickedA : (weeks[weeks.length - 2] ?? weeks[0] ?? "");
+    pickedA && weeks.includes(pickedA) && pickedA !== weekB
+      ? pickedA
+      : (weekAlternatives[weekAlternatives.length - 1] ?? weekB);
 
   const recordsA = useMemo(() => records.filter((r) => r.week === weekA), [records, weekA]);
   const recordsB = useMemo(() => records.filter((r) => r.week === weekB), [records, weekB]);
@@ -642,6 +697,7 @@ function WeeklyTab({
         currency={currency}
         title={`${weekLabel(weekA)} versus ${weekLabel(weekB)}`}
         question="Which KPIs moved between these two weeks?"
+        hiddenIds={["retentionD2", "retentionD4", "retentionD5", "retentionD6", "matchRate"]}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -684,8 +740,11 @@ function BuildsTab({
   const [pickedA, setPickedA] = useState<string | null>(null);
   const [pickedB, setPickedB] = useState<string | null>(null);
   const buildB = pickedB && builds.includes(pickedB) ? pickedB : (builds[builds.length - 1] ?? "");
+  const buildAlternatives = builds.filter((b) => b !== buildB);
   const buildA =
-    pickedA && builds.includes(pickedA) ? pickedA : (builds[builds.length - 2] ?? builds[0] ?? "");
+    pickedA && builds.includes(pickedA) && pickedA !== buildB
+      ? pickedA
+      : (buildAlternatives[buildAlternatives.length - 1] ?? buildB);
 
   const recordsA = useMemo(() => records.filter((r) => r.build === buildA), [records, buildA]);
   const recordsB = useMemo(() => records.filter((r) => r.build === buildB), [records, buildB]);
@@ -764,6 +823,7 @@ function BuildsTab({
         currency={currency}
         title={`Build ${buildA} versus build ${buildB}`}
         question="Did the newer build improve or damage the KPIs?"
+        hiddenIds={["retentionD2", "retentionD4", "retentionD5", "retentionD6", "matchRate"]}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -7,6 +7,7 @@ import { decodeBuffer, hashContent } from "@/lib/csv/decode";
 import { buildColumnPlan, detectReport, parseTable } from "@/lib/csv/parse";
 import { transform } from "@/lib/csv/transform";
 import { deduplicateAudience, mergeRecords } from "@/lib/merge";
+import { parseDate } from "@/lib/csv/values";
 import { validateDatabase } from "@/lib/validation";
 import { dataDateRange } from "@/lib/select";
 import { DEFAULT_WEEK_START, isoWeekKey, setWeekStart, WeekStart } from "@/lib/week";
@@ -42,6 +43,7 @@ interface WorkspaceState {
   addFiles: (files: File[]) => Promise<void>;
   loadSampleFiles: () => Promise<void>;
   removeStaged: (id: string) => void;
+  setStagedPeriod: (id: string, period: { start: string; end: string } | undefined) => void;
   processStaged: () => Promise<void>;
   setWeeklySpend: (week: string, value: number | null) => Promise<void>;
   setProjectWeekStart: (start: WeekStart) => Promise<void>;
@@ -53,6 +55,39 @@ function lastSevenDays(): { start: string; end: string } {
   const start = new Date();
   start.setDate(end.getDate() - 6);
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+/**
+ * Reporting weeks covered by the dated staged sheets (and anything already
+ * imported). A dateless sheet must be pinned to one of these: two weekly AdMob
+ * exports uploaded together would otherwise both smear across the whole span,
+ * every day would carry the first file's figures, and both weeks would show
+ * identical, halved revenue.
+ */
+export function stagedDatedWeeks(staged: UploadedFile[], records: KpiRecord[]): string[] {
+  const weeks = new Set<string>();
+  for (const record of records) if (record.week && record.date) weeks.add(isoWeekKey(record.date));
+  for (const file of staged) {
+    const { parsedTable: table, plan } = file;
+    if (!table || !plan) continue;
+    const dateColumn = plan.findIndex((p) => p.targetField === "date" && !p.ignored);
+    if (dateColumn === -1) continue;
+    for (const row of table.rows) {
+      const date = parseDate(row[dateColumn] ?? "");
+      if (date) weeks.add(isoWeekKey(date));
+    }
+  }
+  return Array.from(weeks).sort();
+}
+
+/** Staged files that carry no date column and so need a period assigned. */
+export function datelessStaged(staged: UploadedFile[]): UploadedFile[] {
+  return staged.filter(
+    (f) =>
+      f.status !== "error" &&
+      f.plan !== undefined &&
+      !f.plan.some((p) => p.targetField === "date" && !p.ignored)
+  );
 }
 
 /** Games named inside staged files, so a multi-app export can be narrowed down. */
@@ -228,6 +263,11 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
   },
 
   removeStaged: (id) => set((state) => ({ staged: state.staged.filter((f) => f.id !== id) })),
+
+  setStagedPeriod: (id, period) =>
+    set((state) => ({
+      staged: state.staged.map((f) => (f.id === id ? { ...f, period } : f)),
+    })),
 
   processStaged: async () => {
     const { staged, records, files, issues, projectId, project } = get();
