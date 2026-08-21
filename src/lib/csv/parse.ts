@@ -30,9 +30,19 @@ function filled(row: string[]): number {
   return row.filter((c) => c.trim() !== "").length;
 }
 
+/**
+ * Summary rows must never be imported as data — they carry the same figures
+ * again and would double count. Google Ads puts "Total: Account" in the second
+ * column rather than the first, and GA4 explore exports end with "Mean" or
+ * "Wgt. Mean", so the first few cells are all checked.
+ */
+const SUMMARY_CELL =
+  /^(total\b|grand total\b|sum$|subtotal\b|average$|avg\.?$|mean$|wgt\.? mean$|weighted mean$)/i;
+
 function isTotalRow(row: string[]): boolean {
-  const first = (row[0] ?? "").trim().toLowerCase();
-  return first.startsWith("total") || first.startsWith("grand total") || first === "sum";
+  return row
+    .slice(0, 3)
+    .some((cell) => SUMMARY_CELL.test((cell ?? "").trim()));
 }
 
 function headerScore(row: string[]): number {

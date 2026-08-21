@@ -233,25 +233,30 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
         fileName: file.name,
         source: file.source,
         reportKind: file.reportKind,
+        // Files that name their own app keep that name; the rest inherit the
+        // project's, and everything is normalised to one identity below.
         game: project?.appName ?? project?.name,
         currency: file.currency ?? project?.currency,
         period,
+        spreadAcrossPeriod: period !== undefined,
       });
       fresh = fresh.concat(result.records);
       newIssues.push(...result.issues);
     };
 
-    // Dated files first, so a dateless export can inherit their span.
-    const hasOwnDates = (file: UploadedFile) =>
-      Boolean(file.period) || Boolean(file.plan?.some((p) => p.targetField === "date" && !p.ignored));
+    // Only a real date column counts as dated. A file that merely states a
+    // reporting period is spread across it, otherwise every one of its rows
+    // would pile onto a single day and collide with the daily sheets.
+    const hasDateColumn = (file: UploadedFile) =>
+      Boolean(file.plan?.some((p) => p.targetField === "date" && !p.ignored));
 
-    usable.filter(hasOwnDates).forEach((file) => run(file, file.period));
+    usable.filter(hasDateColumn).forEach((file) => run(file));
     const inferred = dataDateRange(fresh) ?? dataDateRange(records);
 
     usable
-      .filter((file) => !hasOwnDates(file))
+      .filter((file) => !hasDateColumn(file))
       .forEach((file) => {
-        const period = inferred ?? lastSevenDays();
+        const period = file.period ?? inferred ?? lastSevenDays();
         run(file, period);
         newIssues.push({
           id: `auto-period-${file.id}`,
@@ -263,11 +268,52 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
         });
       });
 
-    // A multi-app export (AdMob) carries other games — keep only this project's.
-    const names = new Set(
+    // Sheets name their app differently from the project ("Arrows: Brain Puzzle
+    // Escape" vs a project called "Arrow Escaape"). Dropping non-matching rows
+    // would silently discard the revenue, so bind instead: an export naming a
+    // single app is taken to be this project's, and only a genuinely multi-app
+    // export is filtered.
+    const bound = new Set(
       [project?.appName, project?.name].filter(Boolean).map((n) => n!.toLowerCase())
     );
-    const scoped = fresh.filter((r) => !r.game || names.has(r.game.toLowerCase()));
+    const namesInSheets = Array.from(new Set(fresh.map((r) => r.game).filter(Boolean) as string[]));
+    const unmatched = namesInSheets.filter((n) => !bound.has(n.toLowerCase()));
+
+    let adopted: string | undefined;
+    if (unmatched.length > 0 && namesInSheets.length === unmatched.length + bound.size) {
+      // Nothing matched by name. One app in the sheets means no ambiguity.
+      if (unmatched.length === 1) {
+        adopted = unmatched[0];
+        bound.add(adopted.toLowerCase());
+        newIssues.push({
+          id: `app-bound-${Date.now()}`,
+          severity: "info",
+          category: "App matched",
+          description: `The sheets name the app "${adopted}", which does not match the project name "${project?.name}". It was treated as this project's app.`,
+          resolution: "Rename the project if that is wrong — nothing was discarded.",
+          sourceFile: "Upload",
+        });
+      } else {
+        newIssues.push({
+          id: `app-ambiguous-${Date.now()}`,
+          severity: "warning",
+          category: "Several apps in one sheet",
+          description: `The sheets cover ${unmatched.length} apps (${unmatched.join(", ")}) and none matches the project name "${project?.name}". Their rows were left out.`,
+          resolution: "Name the project after the app you want, or upload a sheet covering only that app.",
+          sourceFile: "Upload",
+        });
+      }
+    }
+
+    const scoped = fresh
+      .filter((r) => !r.game || bound.has(r.game.toLowerCase()))
+      // One project is one game, so every row carries the same identity and
+      // complementary sheets merge onto the same day.
+      .map((r) => (r.game ? { ...r, game: project?.name ?? r.game } : r));
+
+    if (adopted && projectId) {
+      await api.updateProject(projectId, { appName: adopted });
+    }
 
     const combined = [...records, ...scoped];
     const deduped = deduplicateAudience(combined);

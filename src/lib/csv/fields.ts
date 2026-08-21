@@ -167,6 +167,19 @@ export const EXACT_HEADERS: Record<string, string> = {
  * source-reported ratio silently override an aggregate-correct calculation.
  */
 export const DERIVED_HEADERS = new Set([
+  // Cost-per-X columns are ratios, not spend. Importing them as spend would
+  // add a per-unit figure to a total.
+  "cost install",
+  "cost in app action",
+  "cost conversion",
+  "cost conv",
+  "cost click",
+  "cost per install",
+  "cost per conversion",
+  "conversion rate",
+  "conv rate",
+  "budget",
+  "optimization score",
   "match rate",
   "show rate",
   "ctr",

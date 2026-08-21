@@ -87,7 +87,10 @@ const MONTHS: Record<string, number> = {
 /** Returns ISO yyyy-MM-dd, or undefined when the cell is not a date. */
 export function parseDate(raw: string | undefined | null): string | undefined {
   if (isMissingCell(raw)) return undefined;
-  const s = String(raw).trim();
+  // Google Ads chart exports prefix the weekday: "Sun, Aug 9, 2026".
+  const s = String(raw)
+    .trim()
+    .replace(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+/i, "");
 
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
 
