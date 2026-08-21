@@ -9,7 +9,43 @@ import { DateRange } from "./types";
  * comparison, spend or revenue, wrong by roughly six times. Sunday is therefore
  * the default; ISO remains available for sources that use it.
  */
-export type WeekStart = "sunday" | "monday";
+export type WeekStart =
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
+/** Matches JavaScript's getUTCDay(), where Sunday is 0. */
+const DAY_INDEX: Record<WeekStart, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+export const WEEK_STARTS = Object.keys(DAY_INDEX) as WeekStart[];
+
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+/** "Sunday – Saturday", "Tuesday – Monday", and so on. */
+export function weekStartLabel(start: WeekStart): string {
+  const first = DAY_INDEX[start];
+  return `${DAY_NAMES[first]} – ${DAY_NAMES[(first + 6) % 7]}`;
+}
 
 export const DEFAULT_WEEK_START: WeekStart = "sunday";
 
@@ -29,22 +65,21 @@ export function getWeekStart(): WeekStart {
 
 /** Days from the week's first day to `date`, 0-6. */
 function offsetIntoWeek(date: Date, start: WeekStart): number {
-  const day = date.getUTCDay(); // Sunday = 0
-  return start === "sunday" ? day : (day + 6) % 7;
+  return (date.getUTCDay() - DAY_INDEX[start] + 7) % 7;
 }
 
 /**
  * Week key such as "2026-W33".
  *
- * Both conventions number the week by the year that owns its midpoint — the
- * Thursday for Monday-start weeks, the Wednesday for Sunday-start ones — so a
- * week spanning New Year belongs to one year rather than being split.
+ * Whatever the start day, a week is numbered by the year that owns its midpoint
+ * (its fourth day), so a week spanning New Year belongs to one year rather than
+ * being split. With a Monday start this is exactly the ISO-8601 rule.
  */
 export function isoWeekKey(iso: string, start: WeekStart = weekStart): string {
   const d = new Date(iso + "T00:00:00Z");
   if (Number.isNaN(d.getTime())) return "";
 
-  const midpointOffset = start === "sunday" ? 3 : 3; // 4th day of the week
+  const midpointOffset = 3; // the week's fourth day
   const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   target.setUTCDate(target.getUTCDate() - offsetIntoWeek(target, start) + midpointOffset);
 

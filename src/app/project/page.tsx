@@ -19,7 +19,15 @@ import { kpisFor } from "@/lib/kpi";
 import { generateAlerts } from "@/lib/alerts";
 import { dataDateRange, distinctValues, groupedKpis } from "@/lib/select";
 import { formatCurrencyPrecise, formatFileSize, formatNumber } from "@/lib/format";
-import { rangeLabel, weekLabel, weekLabelWithRange, weekRange, WeekStart } from "@/lib/week";
+import {
+  rangeLabel,
+  weekLabel,
+  weekLabelWithRange,
+  weekRange,
+  weekStartLabel,
+  WEEK_STARTS,
+  WeekStart,
+} from "@/lib/week";
 import { exportRecordsCsv } from "@/lib/exportCsv";
 import { REPORT_KIND_LABELS, SOURCE_LABELS, SourceId } from "@/lib/types";
 
@@ -598,7 +606,7 @@ function WeeklyTab({
 
         <div>
           <label htmlFor="week-start" className="block text-xs font-medium text-slate-600">
-            Week starts on
+            Reporting week
           </label>
           <select
             id="week-start"
@@ -606,8 +614,12 @@ function WeeklyTab({
             onChange={(e) => onWeekStart(e.target.value as WeekStart)}
             className="mt-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
           >
-            <option value="sunday">Sunday (Google Ads, GA4)</option>
-            <option value="monday">Monday (ISO)</option>
+            {WEEK_STARTS.map((start) => (
+              <option key={start} value={start}>
+                {weekStartLabel(start)}
+                {start === "sunday" ? " · Google Ads, GA4" : start === "monday" ? " · ISO" : ""}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -618,8 +630,8 @@ function WeeklyTab({
           className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-600/20"
         >
           {thinWeek} covers only {thinWeekDays} day(s) of data, so totals such as spend and revenue
-          are not comparable with a full week. If your exports run Sunday to Saturday, set the week
-          start to Sunday.
+          are not comparable with a full week. Set the reporting week to match the range your
+          exports actually cover.
         </p>
       )}
 

@@ -37,8 +37,14 @@ is the default. A Monday-start (ISO) calendar would split each of those exports
 across two weeks, leaving a one-day week beside a six-day one and making spend,
 revenue and ROAS comparisons wrong by roughly six times.
 
-Switch a project between Sunday and Monday (ISO) on the **Weekly Comparison**
-tab. Changing it re-derives every stored week from its date, so existing
+Any start day works — pick the one matching the range your exports cover, on the
+**Weekly Comparison** tab:
+
+| Reporting week | Typical source |
+|---|---|
+| Sunday – Saturday | Google Ads, GA4 explore (default) |
+| Monday – Sunday | ISO-8601 |
+| Tuesday – Monday … Saturday – Friday | custom reporting cycles | Changing it re-derives every stored week from its date, so existing
 imports move with it. Week selectors show the dates each week covers, and a
 comparison involving a part-week says so rather than presenting it as
 comparable.

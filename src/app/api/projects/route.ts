@@ -1,4 +1,5 @@
 import { createProject, listProjects, ProjectPlatform } from "@/lib/server/storage";
+import { DEFAULT_WEEK_START, WEEK_STARTS, WeekStart } from "@/lib/week";
 
 const PLATFORMS: ProjectPlatform[] = ["Android", "iOS", "Android + iOS", "Other"];
 
@@ -15,7 +16,9 @@ export async function POST(request: Request) {
   if (!name || !companyId) {
     return Response.json({ error: "A company and a project name are required." }, { status: 400 });
   }
-  const weekStart = body.weekStart === "monday" ? "monday" : "sunday";
+  const weekStart: WeekStart = WEEK_STARTS.includes(body.weekStart)
+    ? (body.weekStart as WeekStart)
+    : DEFAULT_WEEK_START;
   return Response.json(
     await createProject({ companyId, name, platform, currency: body.currency, weekStart }),
     { status: 201 }
