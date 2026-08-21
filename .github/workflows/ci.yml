@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Lint, type check and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` installs exactly what the lockfile pins, so a run never
+      # succeeds on a dependency the repository does not actually record.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint src --ext .ts,.tsx
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+  # The Firebase Analytics connector is an optional dependency. This proves the
+  # app still builds without it, which is how the "Module not found" break got
+  # in the first time.
+  build-without-optional-connector:
+    name: Build without google-auth-library
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Remove the optional connector package
+        run: rm -rf node_modules/google-auth-library
+
+      - name: Build
+        run: npm run build

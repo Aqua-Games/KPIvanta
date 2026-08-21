@@ -112,6 +112,20 @@ Re-syncing the same date range **replaces** those rows rather than adding to the
 
 The Firebase → BigQuery export needs the **Blaze plan**, which requires a card on file, and queries are billed per byte scanned. BigQuery is only worth it for custom events, level funnels or exact figures in very small markets. For the KPIs in this dashboard the free Data API gives the same numbers — including cohort-weighted retention.
 
+## Continuous integration
+
+Every push and pull request runs `.github/workflows/ci.yml`, which lints, type
+checks and builds on a clean `npm ci` install. A second job builds again with
+`google-auth-library` deleted, proving the optional Firebase connector cannot
+break a checkout that has not installed it.
+
+Nothing needs configuring — GitHub picks the workflow up automatically. Add the
+badge to see status at a glance:
+
+```markdown
+![CI](https://github.com/Aqua-Games/KPIvanta/actions/workflows/ci.yml/badge.svg)
+```
+
 ## Production build
 
 ```bash
