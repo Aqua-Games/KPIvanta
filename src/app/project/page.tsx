@@ -19,7 +19,7 @@ import { kpisFor } from "@/lib/kpi";
 import { generateAlerts } from "@/lib/alerts";
 import { dataDateRange, distinctValues, groupedKpis } from "@/lib/select";
 import { formatCurrencyPrecise, formatFileSize, formatNumber } from "@/lib/format";
-import { rangeLabel, weekLabel, weekRange } from "@/lib/week";
+import { rangeLabel, weekLabel, weekLabelWithRange, weekRange, WeekStart } from "@/lib/week";
 import { exportRecordsCsv } from "@/lib/exportCsv";
 import { REPORT_KIND_LABELS, SOURCE_LABELS, SourceId } from "@/lib/types";
 
@@ -64,6 +64,7 @@ function ProjectPage() {
     removeStaged,
     processStaged,
     setWeeklySpend,
+    setProjectWeekStart,
     clearData,
   } = useWorkspace();
 
@@ -205,7 +206,13 @@ function ProjectPage() {
             />
           )}
           {tab === "weekly" && (
-            <WeeklyTab records={records} weeks={weeks} currency={currency} />
+            <WeeklyTab
+              records={records}
+              weeks={weeks}
+              currency={currency}
+              weekStart={project.weekStart ?? "sunday"}
+              onWeekStart={setProjectWeekStart}
+            />
           )}
           {tab === "builds" && (
             <BuildsTab records={records} builds={builds} currency={currency} />
@@ -501,10 +508,14 @@ function WeeklyTab({
   records,
   weeks,
   currency,
+  weekStart,
+  onWeekStart,
 }: {
   records: Parameters<typeof kpisFor>[0];
   weeks: string[];
   currency: string;
+  weekStart: WeekStart;
+  onWeekStart: (start: WeekStart) => void;
 }) {
   const [pickedA, setPickedA] = useState<string | null>(null);
   const [pickedB, setPickedB] = useState<string | null>(null);
@@ -523,6 +534,18 @@ function WeeklyTab({
       { key: weekB, label: weekLabel(weekB), values: b, sampleDays: b.dayCount, sampleUsers: b.dauTotal },
     ];
   }, [recordsA, recordsB, weekA, weekB]);
+
+  // Comparing a part-week against a full one makes every total misleading.
+  const [thinWeek, thinWeekDays] = useMemo(() => {
+    for (const [key, rows] of [
+      [weekA, recordsA],
+      [weekB, recordsB],
+    ] as const) {
+      const days = new Set(rows.map((r) => r.date).filter(Boolean)).size;
+      if (days > 0 && days < 7) return [weekLabel(key), days] as const;
+    }
+    return [null, 0] as const;
+  }, [weekA, weekB, recordsA, recordsB]);
 
   if (weeks.length < 2) {
     return (
@@ -549,7 +572,7 @@ function WeeklyTab({
           >
             {weeks.map((w) => (
               <option key={w} value={w}>
-                {weekLabel(w)}
+                {weekLabelWithRange(w)}
               </option>
             ))}
           </select>
@@ -567,12 +590,38 @@ function WeeklyTab({
           >
             {weeks.map((w) => (
               <option key={w} value={w}>
-                {weekLabel(w)}
+                {weekLabelWithRange(w)}
               </option>
             ))}
           </select>
         </div>
+
+        <div>
+          <label htmlFor="week-start" className="block text-xs font-medium text-slate-600">
+            Week starts on
+          </label>
+          <select
+            id="week-start"
+            value={weekStart}
+            onChange={(e) => onWeekStart(e.target.value as WeekStart)}
+            className="mt-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+          >
+            <option value="sunday">Sunday (Google Ads, GA4)</option>
+            <option value="monday">Monday (ISO)</option>
+          </select>
+        </div>
       </div>
+
+      {thinWeek && (
+        <p
+          role="note"
+          className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-600/20"
+        >
+          {thinWeek} covers only {thinWeekDays} day(s) of data, so totals such as spend and revenue
+          are not comparable with a full week. If your exports run Sunday to Saturday, set the week
+          start to Sunday.
+        </p>
+      )}
 
       <SixBoxes records={recordsB} compareRecords={recordsA} currency={currency} />
 

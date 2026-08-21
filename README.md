@@ -30,6 +30,19 @@ Open **http://localhost:3000**.
    - **Weekly Comparison** — any two weeks side by side
    - **Build Comparison** — any two builds side by side
 
+### Reporting weeks
+
+Google Ads and the GA4 explore tool export **Sunday-to-Saturday** weeks, so that
+is the default. A Monday-start (ISO) calendar would split each of those exports
+across two weeks, leaving a one-day week beside a six-day one and making spend,
+revenue and ROAS comparisons wrong by roughly six times.
+
+Switch a project between Sunday and Monday (ISO) on the **Weekly Comparison**
+tab. Changing it re-derives every stored week from its date, so existing
+imports move with it. Week selectors show the dates each week covers, and a
+comparison involving a part-week says so rather than presenting it as
+comparable.
+
 Uploads are cumulative: each new week is added to the project's history, so week-over-week comparison has something to compare. Identical files are skipped rather than double counted.
 
 No export handy? Click **"Load the bundled sample files"**.

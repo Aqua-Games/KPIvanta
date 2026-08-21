@@ -97,6 +97,7 @@ export const browserStore = {
     name: string;
     platform: ProjectPlatform;
     currency?: string;
+    weekStart?: Project["weekStart"];
   }): Promise<Project> {
     const store = read();
     const now = new Date().toISOString();
@@ -106,6 +107,7 @@ export const browserStore = {
       name: input.name.trim(),
       platform: input.platform,
       currency: input.currency ?? "GBP",
+      weekStart: input.weekStart ?? "sunday",
       createdAt: now,
       updatedAt: now,
     };

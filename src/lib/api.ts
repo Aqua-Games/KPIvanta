@@ -43,6 +43,7 @@ const serverApi = {
     name: string;
     platform: ProjectPlatform;
     currency?: string;
+    weekStart?: Project["weekStart"];
   }) => request<Project>("/api/projects", { method: "POST", body: JSON.stringify(input) }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   updateProject: (id: string, patch: Partial<Project>) =>

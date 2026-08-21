@@ -1,16 +1,58 @@
 import { DateRange } from "./types";
 
-/** ISO-8601 week key, e.g. "2026-W30". Weeks start on Monday. */
-export function isoWeekKey(iso: string): string {
+/**
+ * Which day a reporting week begins on.
+ *
+ * Google Ads and the GA4 explore tool export Sunday-to-Saturday weeks, so a
+ * Monday-start (ISO) calendar would split every one of those exports across two
+ * weeks — leaving a one-day week beside a six-day one and making any additive
+ * comparison, spend or revenue, wrong by roughly six times. Sunday is therefore
+ * the default; ISO remains available for sources that use it.
+ */
+export type WeekStart = "sunday" | "monday";
+
+export const DEFAULT_WEEK_START: WeekStart = "sunday";
+
+/**
+ * Module-level because week keys are stamped deep inside parsing and
+ * aggregation, far from any component that knows the project's preference.
+ */
+let weekStart: WeekStart = DEFAULT_WEEK_START;
+
+export function setWeekStart(start: WeekStart) {
+  weekStart = start;
+}
+
+export function getWeekStart(): WeekStart {
+  return weekStart;
+}
+
+/** Days from the week's first day to `date`, 0-6. */
+function offsetIntoWeek(date: Date, start: WeekStart): number {
+  const day = date.getUTCDay(); // Sunday = 0
+  return start === "sunday" ? day : (day + 6) % 7;
+}
+
+/**
+ * Week key such as "2026-W33".
+ *
+ * Both conventions number the week by the year that owns its midpoint — the
+ * Thursday for Monday-start weeks, the Wednesday for Sunday-start ones — so a
+ * week spanning New Year belongs to one year rather than being split.
+ */
+export function isoWeekKey(iso: string, start: WeekStart = weekStart): string {
   const d = new Date(iso + "T00:00:00Z");
   if (Number.isNaN(d.getTime())) return "";
+
+  const midpointOffset = start === "sunday" ? 3 : 3; // 4th day of the week
   const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const dayNumber = (target.getUTCDay() + 6) % 7; // Monday = 0
-  target.setUTCDate(target.getUTCDate() - dayNumber + 3); // Thursday of this week
-  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
-  const firstDayNumber = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNumber + 3);
-  const week = 1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * 86400000));
+  target.setUTCDate(target.getUTCDate() - offsetIntoWeek(target, start) + midpointOffset);
+
+  // The week containing 4 January always belongs to that year under both rules.
+  const anchor = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+  anchor.setUTCDate(anchor.getUTCDate() - offsetIntoWeek(anchor, start) + midpointOffset);
+
+  const week = 1 + Math.round((target.getTime() - anchor.getTime()) / (7 * 86400000));
   return `${target.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
@@ -58,19 +100,19 @@ export function weekLabelWithRange(weekKey: string): string {
   return range ? `${weekLabel(weekKey)} · ${rangeLabel(range)}` : weekLabel(weekKey);
 }
 
-/** Monday..Sunday date range covered by an ISO week key. */
-export function weekRange(weekKey: string): DateRange | null {
+/** The seven days a week key covers, under the configured convention. */
+export function weekRange(weekKey: string, start: WeekStart = weekStart): DateRange | null {
   const match = weekKey.match(/^(\d{4})-W(\d+)$/);
   if (!match) return null;
   const year = parseInt(match[1], 10);
   const week = parseInt(match[2], 10);
+
   const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = (jan4.getUTCDay() + 6) % 7;
-  const monday = new Date(jan4);
-  monday.setUTCDate(jan4.getUTCDate() - jan4Day + (week - 1) * 7);
-  const sunday = new Date(monday);
-  sunday.setUTCDate(monday.getUTCDate() + 6);
-  return { start: monday.toISOString().slice(0, 10), end: sunday.toISOString().slice(0, 10) };
+  const first = new Date(jan4);
+  first.setUTCDate(jan4.getUTCDate() - offsetIntoWeek(jan4, start) + (week - 1) * 7);
+  const last = new Date(first);
+  last.setUTCDate(first.getUTCDate() + 6);
+  return { start: first.toISOString().slice(0, 10), end: last.toISOString().slice(0, 10) };
 }
 
 export function previousWeekKey(weekKey: string): string {

@@ -9,7 +9,7 @@ import { transform } from "@/lib/csv/transform";
 import { deduplicateAudience, mergeRecords } from "@/lib/merge";
 import { validateDatabase } from "@/lib/validation";
 import { dataDateRange } from "@/lib/select";
-import { isoWeekKey } from "@/lib/week";
+import { DEFAULT_WEEK_START, isoWeekKey, setWeekStart, WeekStart } from "@/lib/week";
 import { api, BASE_PATH, Project, ProjectData } from "@/lib/api";
 
 export const SAMPLE_FILES = [
@@ -44,6 +44,7 @@ interface WorkspaceState {
   removeStaged: (id: string) => void;
   processStaged: () => Promise<void>;
   setWeeklySpend: (week: string, value: number | null) => Promise<void>;
+  setProjectWeekStart: (start: WeekStart) => Promise<void>;
   clearData: () => Promise<void>;
 }
 
@@ -109,6 +110,11 @@ export function applyWeeklySpend(
   return [...records, ...spendRecords];
 }
 
+/** Week keys are derived from the date, never trusted from storage. */
+function restampWeeks(records: KpiRecord[]): KpiRecord[] {
+  return records.map((r) => (r.date ? { ...r, week: isoWeekKey(r.date) } : r));
+}
+
 export const useWorkspace = create<WorkspaceState>()((set, get) => ({
   projectId: null,
   project: null,
@@ -129,9 +135,14 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
         api.getProject(projectId),
         api.getProjectData(projectId),
       ]);
+      // The week convention must be in force before anything reads a week key.
+      setWeekStart(project.weekStart ?? DEFAULT_WEEK_START);
       set({
         project,
-        records: data.records,
+        // Week keys are stamped at import time, so re-derive them from the date.
+        // That keeps records correct when the convention changes and migrates
+        // anything imported under the old one.
+        records: restampWeeks(data.records),
         files: data.files,
         issues: data.issues,
         weeklySpend: data.weeklySpend ?? {},
@@ -370,6 +381,26 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
       await api.saveProjectData(projectId, { records, files, issues, weeklySpend: next });
     } finally {
       set({ saving: false });
+    }
+  },
+
+  setProjectWeekStart: async (start: WeekStart) => {
+    const { projectId, records, files, issues, weeklySpend, project } = get();
+    if (!projectId || !project) return;
+    set({ saving: true });
+    try {
+      setWeekStart(start);
+      const restamped = restampWeeks(records);
+      await api.updateProject(projectId, { weekStart: start });
+      await api.saveProjectData(projectId, {
+        records: restamped,
+        files,
+        issues,
+        weeklySpend,
+      });
+      set({ project: { ...project, weekStart: start }, records: restamped, saving: false });
+    } catch (e) {
+      set({ saving: false, error: e instanceof Error ? e.message : "Could not save the setting." });
     }
   },
 

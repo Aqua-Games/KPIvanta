@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { KpiRecord, UploadedFile, ValidationIssue } from "../types";
+import type { WeekStart } from "../week";
 
 /**
  * File-backed persistence. Everything lives under `data/` in the project root
@@ -31,6 +32,11 @@ export interface Project {
   appName?: string;
   /** GA4 / Firebase Analytics property this project pulls from. */
   ga4PropertyId?: string;
+  /**
+   * Which day this project's reporting week starts on. Google Ads and the GA4
+   * explore tool export Sunday-to-Saturday, so that is the default.
+   */
+  weekStart?: WeekStart;
   currency: string;
   createdAt: string;
   updatedAt: string;
@@ -134,6 +140,7 @@ export async function createProject(input: {
   name: string;
   platform: ProjectPlatform;
   currency?: string;
+  weekStart?: WeekStart;
 }): Promise<Project> {
   const now = new Date().toISOString();
   const project: Project = {
@@ -142,6 +149,7 @@ export async function createProject(input: {
     name: input.name.trim(),
     platform: input.platform,
     currency: input.currency ?? "GBP",
+    weekStart: input.weekStart ?? "sunday",
     createdAt: now,
     updatedAt: now,
   };
