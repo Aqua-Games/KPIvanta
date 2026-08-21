@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useWorkspace, applyWeeklySpend } from "@/store/useWorkspace";
 import { Dropzone } from "@/components/import/Dropzone";
 import { Card } from "@/components/ui/Card";
@@ -36,8 +37,16 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "builds", label: "Build Comparison" },
 ];
 
-export default function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = use(params);
+export default function ProjectPageRoute() {
+  return (
+    <Suspense fallback={<LoadingState label="Loading project…" />}>
+      <ProjectPage />
+    </Suspense>
+  );
+}
+
+function ProjectPage() {
+  const projectId = useSearchParams().get("id") ?? "";
   const {
     project,
     loading,
@@ -90,7 +99,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
       <div className="flex flex-wrap items-start justify-between gap-3 pt-2">
         <div>
           <Link
-            href={`/companies/${project.companyId}`}
+            href={`/company?id=${project.companyId}`}
             className="text-xs font-medium text-blue-700 hover:underline"
           >
             ← Back to projects

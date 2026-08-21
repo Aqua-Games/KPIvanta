@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, Company, Project, ProjectPlatform } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { LoadingState, ErrorState } from "@/components/ui/States";
@@ -11,12 +11,17 @@ import { formatDate } from "@/lib/format";
 const PLATFORMS: ProjectPlatform[] = ["Android", "iOS", "Android + iOS", "Other"];
 const CURRENCIES = ["GBP", "USD", "EUR"];
 
-export default function CompanyPage({
-  params,
-}: {
-  params: Promise<{ companyId: string }>;
-}) {
-  const { companyId } = use(params);
+export default function CompanyPageRoute() {
+  // useSearchParams needs a Suspense boundary when the page is prerendered.
+  return (
+    <Suspense fallback={<LoadingState label="Loading projects…" />}>
+      <CompanyPage />
+    </Suspense>
+  );
+}
+
+function CompanyPage() {
+  const companyId = useSearchParams().get("id") ?? "";
   const router = useRouter();
 
   const [company, setCompany] = useState<Company | null>(null);
@@ -42,7 +47,7 @@ export default function CompanyPage({
     setBusy(true);
     try {
       const project = await api.createProject({ companyId, name, platform, currency });
-      router.push(`/projects/${project.id}`);
+      router.push(`/project?id=${project.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create the project.");
       setBusy(false);
@@ -135,7 +140,7 @@ export default function CompanyPage({
           {projects.map((project) => (
             <Link
               key={project.id}
-              href={`/projects/${project.id}`}
+              href={`/project?id=${project.id}`}
               className="panel group flex flex-col p-4 transition-shadow hover:shadow-md"
             >
               <span className="flex items-center justify-between gap-2">

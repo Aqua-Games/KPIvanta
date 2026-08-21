@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, Company, Project } from "@/lib/api";
+import { api, IS_STATIC, Company, Project } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { LoadingState, ErrorState } from "@/components/ui/States";
 import { formatDate } from "@/lib/format";
@@ -48,8 +48,18 @@ export default function CompaniesPage() {
       <div className="pt-4">
         <h2 className="text-xl font-semibold tracking-tight text-slate-900">Companies</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Pick a company to open its projects, or add a new one. Everything is stored on this
-          machine under the project&apos;s <code className="text-xs">data/</code> folder.
+          Pick a company to open its projects, or add a new one.{" "}
+          {IS_STATIC ? (
+            <>
+              Everything stays in this browser — nothing is uploaded, and the data is not shared
+              with other people or devices.
+            </>
+          ) : (
+            <>
+              Everything is stored on this machine under the project&apos;s{" "}
+              <code className="text-xs">data/</code> folder.
+            </>
+          )}
         </p>
       </div>
 
@@ -94,7 +104,7 @@ export default function CompaniesPage() {
             return (
               <Link
                 key={company.id}
-                href={`/companies/${company.id}`}
+                href={`/company?id=${company.id}`}
                 className="panel group flex flex-col p-4 transition-shadow hover:shadow-md"
               >
                 <span className="flex items-center justify-between gap-2">

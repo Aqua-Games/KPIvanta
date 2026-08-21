@@ -10,7 +10,7 @@ import { deduplicateAudience, mergeRecords } from "@/lib/merge";
 import { validateDatabase } from "@/lib/validation";
 import { dataDateRange } from "@/lib/select";
 import { isoWeekKey } from "@/lib/week";
-import { api, Project, ProjectData } from "@/lib/api";
+import { api, BASE_PATH, Project, ProjectData } from "@/lib/api";
 
 export const SAMPLE_FILES = [
   "dau-overall.csv",
@@ -204,7 +204,7 @@ export const useWorkspace = create<WorkspaceState>()((set, get) => ({
     try {
       const fetched = await Promise.all(
         SAMPLE_FILES.map(async (name) => {
-          const response = await fetch(`/samples/${name}`);
+          const response = await fetch(`${BASE_PATH}/samples/${name}`);
           if (!response.ok) throw new Error(`Could not load the sample file ${name}`);
           return new File([await response.blob()], name, { type: "text/csv" });
         })

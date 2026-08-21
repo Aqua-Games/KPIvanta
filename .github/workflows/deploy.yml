@@ -1,0 +1,64 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+# Allow the workflow to publish to Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; queued runs supersede rather than cancel a live one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/configure-pages@v5
+        id: pages
+
+      - run: npm ci
+
+      # A static site has no server, so the route handlers cannot be part of it.
+      # The client already falls back to browser storage under STATIC_EXPORT.
+      - name: Drop the server-only API routes
+        run: rm -rf src/app/api
+
+      # STATIC_EXPORT swaps the API routes for browser storage; BASE_PATH is the
+      # repository sub-path Pages serves the site under.
+      - name: Build static site
+        env:
+          STATIC_EXPORT: "1"
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: npm run build
+
+      # Pages otherwise runs Jekyll, which strips files starting with an underscore.
+      - name: Disable Jekyll
+        run: touch out/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

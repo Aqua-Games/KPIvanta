@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "./ui/Card";
 import { Badge } from "./ui/Badge";
 import { addDays } from "@/lib/week";
+import { IS_STATIC } from "@/lib/api";
 
 /**
  * Pulls DAU, playtime, retention and revenue straight from Firebase Analytics
@@ -21,7 +22,9 @@ export function FirebaseSync({
 }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  // A static build has no API routes to ask, so it is known up front.
+  const [probed, setProbed] = useState<boolean | null>(null);
+  const configured = IS_STATIC ? false : probed;
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [startDate, setStartDate] = useState(addDays(today, -27));
   const [endDate, setEndDate] = useState(today);
@@ -30,10 +33,15 @@ export function FirebaseSync({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (IS_STATIC) return;
+    let cancelled = false;
     fetch(`/api/projects/${projectId}/sync`)
       .then((r) => r.json())
-      .then((d) => setConfigured(Boolean(d.configured)))
-      .catch(() => setConfigured(false));
+      .then((d) => !cancelled && setProbed(Boolean(d.configured)))
+      .catch(() => !cancelled && setProbed(false));
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   const sync = async () => {

@@ -112,12 +112,33 @@ Re-syncing the same date range **replaces** those rows rather than adding to the
 
 The Firebase → BigQuery export needs the **Blaze plan**, which requires a card on file, and queries are billed per byte scanned. BigQuery is only worth it for custom events, level funnels or exact figures in very small markets. For the KPIs in this dashboard the free Data API gives the same numbers — including cohort-weighted retention.
 
+## Live version
+
+Every push to `master` publishes a static build to GitHub Pages at
+**https://aqua-games.github.io/KPIvanta/** — no install, no account, works in
+any browser.
+
+The hosted build has no server, so the workspace is kept in **your browser's
+storage** instead of the `data/` folder. That means:
+
+- Nothing is uploaded anywhere; your CSVs never leave your machine.
+- Data is per-browser — it is not shared between people or devices, and
+  clearing site data wipes it.
+- The Firebase Analytics sync is unavailable there (it needs a server to hold
+  the service-account key). Run locally for that.
+
+Run it locally, or self-host with `npm start`, and it uses the `data/` folder
+instead — same code, same screens.
+
 ## Continuous integration
 
 Every push and pull request runs `.github/workflows/ci.yml`, which lints, type
 checks and builds on a clean `npm ci` install. A second job builds again with
 `google-auth-library` deleted, proving the optional Firebase connector cannot
 break a checkout that has not installed it.
+
+`.github/workflows/deploy.yml` then builds the static variant
+(`STATIC_EXPORT=1`) and publishes it to Pages.
 
 Nothing needs configuring — GitHub picks the workflow up automatically. Add the
 badge to see status at a glance:

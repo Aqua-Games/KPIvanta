@@ -1,8 +1,21 @@
 "use client";
 
 import { Company, Project, ProjectData, ProjectPlatform } from "./server/storage";
+import { browserStore } from "./storage/browser";
 
 export type { Company, Project, ProjectData, ProjectPlatform };
+
+/**
+ * Two deployment modes share one interface.
+ *
+ * Run locally and the workspace is written to the `data/` folder through the
+ * API routes. Served as a static site (GitHub Pages) there is no server, so it
+ * falls back to this browser's storage.
+ */
+export const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
+
+/** Prefix for anything fetched from `public/`, which GitHub Pages serves under a sub-path. */
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -16,12 +29,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
 
-export const api = {
+const serverApi = {
   listCompanies: () => request<Company[]>("/api/companies"),
   createCompany: (name: string) =>
     request<Company>("/api/companies", { method: "POST", body: JSON.stringify({ name }) }),
   deleteCompany: (id: string) => request<void>(`/api/companies/${id}`, { method: "DELETE" }),
-
   getCompany: (id: string) => request<Company>(`/api/companies/${id}`),
 
   listProjects: (companyId?: string) =>
@@ -41,3 +53,5 @@ export const api = {
   saveProjectData: (id: string, data: Omit<ProjectData, "projectId" | "updatedAt">) =>
     request<ProjectData>(`/api/projects/${id}/data`, { method: "PUT", body: JSON.stringify(data) }),
 };
+
+export const api = IS_STATIC ? browserStore : serverApi;
